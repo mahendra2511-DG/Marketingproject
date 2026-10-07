@@ -36,3 +36,10 @@ Project → **Deployments** → sabse upar wale ke **⋯** → **Redeploy**.
 
 ## Optional
 - Shuruaati PIN alag chahiye to Vercel → Settings → Environment Variables → `ADMIN_PIN` add karo (default `excelr2026`).
+
+## Real visitor counter + student check-in (same database, nothing extra to set up)
+- Students open the site → enter their **name and group once** (saved on their device).
+- Hero shows the real count: "👥 X students visited · Y today" (only when the database is connected; otherwise hidden).
+- **Trainer login** on Project Schedule → a "👥 Student visits" panel appears below the schedule:
+  who visited, first/last visit, visited today ✓, active days, page views, most opened pages, a 30-day chart, search, group filter and **Download CSV**.
+- Same student on phone + laptop shows as one row (merged by name + group).
