@@ -17,7 +17,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <a href="#" class="brand-home" id="brand-home" title="Go to Home" aria-label="AXon Marketing Analytics: go to Home">
-        <img src="assets/axon-logo-light.png" alt="AXon Marketing Analytics" class="brand-logo-img" style="max-width:200px;">
+        <img src="assets/axon-logo.png" alt="AXon Marketing Analytics" class="brand-logo-img logo-on-light" style="max-width:200px;"><img src="assets/axon-logo-light.png" alt="" class="brand-logo-img logo-on-dark" style="max-width:200px;">
       </a>
       <div class="sidebar-project">
         <div class="p1">Marketing Analytics Capstone</div>
@@ -49,6 +49,7 @@
       <div class="nav-group-label">Analytics</div>
       <button data-view="kpis"><span class="ic">📊</span><span class="lbl">KPI Library</span></button>
       <button data-view="sql"><span class="ic">🗄️</span><span class="lbl">SQL Lab</span></button>
+      <button data-view="editor"><span class="ic">⌨️</span><span class="lbl">SQL Practice Editor</span><span class="nav-live">LIVE</span></button>
       <button data-view="excel"><span class="ic">🧮</span><span class="lbl">Excel Analysis</span></button>
       <button data-view="analysis"><span class="ic">💡</span><span class="lbl">Business Analysis</span></button>
 
@@ -89,6 +90,7 @@
   </aside>
 
   <main class="main-content">
+<div class="ds-announce"><span class="ds-new">NEW</span> 3 fresh SQL problems every day on the AXon marketing data. <button data-goto="editor">Start practising →</button></div>
 
 <!-- ===================== HOME ===================== -->
 <section class="view active" id="view-overview">
@@ -96,39 +98,34 @@
     <div id="continue-banner" class="continue-banner" style="display:none;"></div>
     <div class="hero">
       <div class="hero-pattern" aria-hidden="true"></div>
-      <div class="hero-grid">
-        <div class="hero-content">
-          <div class="eyebrow">Capstone Project · Data Analytics Training Programme</div>
-          <h1>AXon <span class="accent-axon">Marketing</span> Analytics — <span class="hl-mark">from email events and web traffic to a defensible ROI story</span>.</h1>
-          <p class="lead">A hands-on capstone built around AXon Retail's marketing data for 2023–2024: 61 email campaigns, 471 sends and 313,895 recipient-level email events (Delivered, Open, Click, Bounce, Unsubscribe), 12,000 subscribers with their orders, and 52,560 rows of daily website traffic by source, device and region. You'll take it through Excel, SQL, Tableau and Power BI, implement the KPI document's Email and Web KPIs (and fix where its formulas mislead), build an Email Campaign dashboard and a Web Engagement dashboard, then defend every number in a QA review.</p>
-          <div class="hero-meta">
-            <span class="chip">313,895 Email Events</span>
-            <span class="chip">61 Campaigns · 471 Sends</span>
-            <span class="chip">7 Tables · Email + Web</span>
-            <span class="chip">15 KPI-doc KPIs · 37 in total</span>
-            <span class="chip">Excel → SQL → Tableau → Power BI → QA</span>
+      <div class="ds-hero">
+        <div class="ds-float ds-f1" id="hero-problem-card"></div>
+        <div class="ds-float ds-f2" id="hero-streak-card"></div>
+        <div class="ds-float ds-f3" id="hero-top-card"></div>
+        <div class="ds-float ds-f4" id="hero-today-card"></div>
+        <div class="ds-center">
+          <div class="ds-pill"><i></i> 3 new SQL problems drop every day · on real AXon data</div>
+          <h1 class="ds-h1">Everything a <span>Marketing Analyst</span> needs. In one project.</h1>
+          <p class="ds-lead">Email, Facebook, Instagram, WhatsApp and website data for AXon Retail (2023–2024): 9 tables, 60 KPIs, SQL, Excel, Tableau and Power BI, QA and interview prep. Practise SQL daily, in Easy, Medium and Advanced, right in your browser.</p>
+          <div class="ds-cta">
+            <button class="btn-dark ds-start" data-goto="journey-anchor">Start Learning Journey <span aria-hidden="true">→</span></button>
+            <button class="ds-link" data-scroll="how-anchor"><span class="ds-play">▶</span> See how it works</button>
           </div>
-          <div class="hero-cta">
-            <button class="btn-dark" data-goto="journey-anchor">Start Learning Journey</button>
+          <div class="ds-cta2">
             <a class="btn-yellow" href="https://www.crackanalytics.com/" target="_blank" rel="noopener">Interview Preparation ↗</a>
             <a class="btn-sky" href="https://www.certiva.co.in/" target="_blank" rel="noopener">Certification Dumps ↗</a>
             <a class="btn-ai" href="https://90daysailearning.vercel.app/" target="_blank" rel="noopener">🤖 AI Learning ↗</a>
           </div>
+          <div class="ds-stats"><span><b>313,895</b> email events</span><span><b>103</b> campaigns</span><span><b>9</b> tables</span><span><b>60</b> KPIs</span><span class="ds-live"><i></i> SQL editor live</span></div>
         </div>
-        <div class="hero-side">
-        <div class="hero-visual">
-          <img src="assets/hero-mockup.jpg" alt="Marketing analytics dashboard concept — spend, visitors, attributed conversions and ROI cards, source donut, trend, channels, funnel and revenue by campaign" class="zoomable" style="cursor:zoom-in;">
-          <div class="cap">Layout reference for inspiration — illustrative values. Your dashboard must use the numbers from the dataset (see the KPI Library answer key).</div>
-        </div>
-        <div class="card social-card">
-          <img src="assets/mahendra-photo.jpg" alt="Mahendra Singh" class="social-avatar">
-          <div class="social-title">Learn with Mahendra Singh</div>
-          <div class="social-links">
-            <a href="https://www.youtube.com/channel/UC2q-vZWSlQpiGiMcSLUqnIg" id="social-youtube" target="_blank" rel="noopener"><img class="sl-badge-img" src="assets/youtube-icon.png" alt="">YouTube channel</a>
-            <a href="https://medium.com/@mahendraa1188" id="social-medium" target="_blank" rel="noopener"><img class="sl-badge-img" src="assets/medium-icon.png" alt="">Medium blog</a>
-            <a href="https://www.linkedin.com/in/mahendra-singh-%F0%9F%87%AE%F0%9F%87%B3%F0%9F%9A%80%E2%9D%84%EF%B8%8F-%F0%9F%90%8D-%F0%9F%A6%84-83699485/" id="social-linkedin" target="_blank" rel="noopener"><i class="sl-badge sl-li">in</i>LinkedIn</a>
-          </div>
-        </div>
+      </div>
+      <div class="ds-mentor card">
+        <img src="assets/mahendra-photo.jpg" alt="Mahendra Singh" class="social-avatar">
+        <div class="ds-mentor-t"><strong>Learn with Mahendra Singh</strong><span>Trainer · CrackAnalytics</span></div>
+        <div class="social-links">
+          <a href="https://www.youtube.com/channel/UC2q-vZWSlQpiGiMcSLUqnIg" id="social-youtube" target="_blank" rel="noopener"><img class="sl-badge-img" src="assets/youtube-icon.png" alt="">YouTube</a>
+          <a href="https://medium.com/@mahendraa1188" id="social-medium" target="_blank" rel="noopener"><img class="sl-badge-img" src="assets/medium-icon.png" alt="">Medium</a>
+          <a href="https://www.linkedin.com/in/mahendra-singh-%F0%9F%87%AE%F0%9F%87%B3%F0%9F%9A%80%E2%9D%84%EF%B8%8F-%F0%9F%90%8D-%F0%9F%A6%84-83699485/" id="social-linkedin" target="_blank" rel="noopener"><i class="sl-badge sl-li">in</i>LinkedIn</a>
         </div>
       </div>
       <div class="callout-yellow">
@@ -147,6 +144,13 @@
         <div class="start-card lvl-3"><div class="lvl">🔵 Interview Ready</div><h4>Project done, interview coming</h4><p>Drill the project questions, avoid the common traps, practise the 90-second pitch and copy your resume block.</p><button class="btn-blue" data-goto="interview">Start Interview Prep →</button></div>
       </div>
       <div class="stat-strip" id="stat-strip"></div>
+      <div class="section-head mt-40" id="how-anchor" style="margin-bottom:14px;"><div class="eyebrow">How it works</div><h2>Practise like it's a daily habit</h2></div>
+      <div class="how-grid">
+        <div class="how-step"><span>1</span><h4>Pick today's 3 problems</h4><p>Easy, Medium and Advanced, picked fresh every day from the AXon dataset.</p></div>
+        <div class="how-step"><span>2</span><h4>Write real SQL</h4><p>The editor runs SQLite in your browser on summary tables of the real data. No install.</p></div>
+        <div class="how-step"><span>3</span><h4>Check your answer</h4><p>Your result is compared with the expected one: rows, columns and values.</p></div>
+        <div class="how-step"><span>4</span><h4>Keep the streak 🔥</h4><p>Solve a little every day; your streak and progress are saved on this device.</p></div>
+      </div>
       <div class="card progress-mini mt-16" id="home-progress"></div>
     </div>
 
@@ -188,7 +192,7 @@
     <div class="callout mt-16">
       <h4>How the same dataset moves through all four tools</h4>
       <p><strong>Excel:</strong> build the KPI document's Email and Web KPIs with formulas and pivots; the starter workbook (below) does it on a one-row-per-email summary and the full web table.<br>
-      <strong>Tableau &amp; Power BI:</strong> don't connect to the Excel file. Load all 7 tables into MySQL, then connect Tableau and Power BI <em>to SQL</em>: the star model for Power BI, and the <code>vw_email_performance</code> / <code>vw_campaign_roi</code> views for quick Tableau work.<br>
+      <strong>Tableau &amp; Power BI:</strong> don't connect to the Excel file. Load all 9 tables into MySQL, then connect Tableau and Power BI <em>to SQL</em>: the star model for Power BI, and the <code>vw_email_performance</code> / <code>vw_campaign_roi</code> views for quick Tableau work.<br>
       <strong>QA:</strong> run SQL directly against the database, then match every delivery, open, click, ROI, session and bounce number against the dashboards.</p>
     </div>
 
@@ -294,7 +298,7 @@
     <div class="card mt-16" style="padding:24px;">
       <h4 style="font-size:15px;margin-bottom:10px;">What kind of data a marketing team actually generates</h4>
       <div class="tag-cloud" id="domain-data"></div>
-      <p style="font-size:13.8px;color:var(--ink-muted);margin-top:14px;">This capstone's 7 tables are an analytics-ready shape of exactly this kind of marketing data.</p>
+      <p style="font-size:13.8px;color:var(--ink-muted);margin-top:14px;">This capstone's 9 tables are an analytics-ready shape of exactly this kind of marketing data.</p>
     </div>
 
     <div class="section-head mt-40">
@@ -307,7 +311,7 @@
     <div class="section-head mt-40">
       <div class="eyebrow">Get Set Up</div>
       <h2>Install the tools, then load the data</h2>
-      <p>Before you touch a dashboard: get Tableau and Power BI installed, and get all 7 tables loaded into MySQL so both tools have a real source to connect to.</p>
+      <p>Before you touch a dashboard: get Tableau and Power BI installed, and get all 9 tables loaded into MySQL so both tools have a real source to connect to.</p>
     </div>
     <div class="card illustration-card mt-16" style="padding:0;overflow:hidden;"><img src="assets/setup-infographic.jpg" alt="Install the tools, then load the data — download, install, load MySQL, verify, connect BI" style="width:100%;height:auto;display:block;"></div>
     <div style="display:none;">
@@ -413,10 +417,10 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Dataset</div>
-      <h2>7 tables, two worlds: the email funnel and the website</h2>
-      <p>The full dataset (AXon_Marketing_Data.xlsx with README and Data_Dictionary sheets, plus 7 CSVs) is shared separately by your trainer. This page tells you what's inside before you open it.</p>
+      <h2>9 tables: email, Facebook &amp; Instagram, WhatsApp, orders and the website</h2>
+      <p>The full dataset (AXon_Marketing_Data.xlsx with README, Data_Dictionary and Integrity_Report sheets, plus 9 CSVs) is shared separately by your trainer. This page tells you what's inside before you open it.</p>
     </div>
-    <div class="disclaimer-box" style="margin-bottom:16px;"><strong>🎓 Training data.</strong> The original project file had random activities (opens dated before the email was sent, emails outside their campaign dates, more opens than deliveries). This dataset keeps the same tables and keys but is generated with realistic behaviour and real-world quirks to find: repeat opens, Apple Mail machine opens, hard bounces, unsubscribes, a missing web day.</div>
+    <div class="disclaimer-box" style="margin-bottom:16px;"><strong>🎓 Training data.</strong> The original project file had random activities (opens dated before the email was sent, emails outside their campaign dates, more opens than deliveries). This dataset keeps the same tables and keys but is generated with realistic behaviour and real-world quirks to find: repeat opens, Apple Mail machine opens, hard bounces, unsubscribes, a missing web day. Facebook, Instagram (Social_Ads_Daily) and WhatsApp (WhatsApp_Messages) tables share the same Campaign_ID / Customer_ID keys, and every foreign key is checked on the QA page: 0 orphans.</div>
     <div class="callout">
       <h4>Coverage and grain: read this before you calculate anything</h4>
       <p id="coverage-text"></p>
@@ -425,7 +429,7 @@
     <div class="section-head mt-40">
       <div class="eyebrow">Hidden business story</div>
       <h2>What the marketing data is really saying</h2>
-      <p>Six patterns sit in this data. Finding and explaining them is your job.</p>
+      <p>Eight patterns sit in this data. Finding and explaining them is your job.</p>
     </div>
     <div class="card table-scroll"><table class="dtable" id="story-table"></table></div>
   </div>
@@ -436,11 +440,13 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Data Model</div>
-      <h2>A star schema with two fact families</h2>
-      <p>Campaigns → Emails → Activities is the email funnel (Campaign_ID and Email_ID, exactly as in the KPI document), Customers and Orders add who and how much, and Web_Engagement is aggregated site traffic that joins only through Dim_Date. Knowing what you <em>can't</em> join is as important as the joins.</p>
+      <h2>9 tables, one star: Campaigns, Customers and Dim_Date in the middle</h2>
+      <p>Campaigns → Emails → Activities is the email funnel (Campaign_ID and Email_ID, exactly as in the KPI document). The same Campaign_ID also feeds Social_Ads_Daily (Facebook, Instagram) and WhatsApp_Messages. Customers and Orders add who and how much (Orders point back to the email or WhatsApp message that got the last click), and Web_Engagement is aggregated site traffic that joins only through Dim_Date. Knowing what you <em>can't</em> join is as important as the joins.</p>
     </div>
     <div class="card mt-16" style="padding:0;overflow:hidden;"><img src="assets/schema-diagram.png" alt="AXon schema — Campaigns, Emails, Activities, Customers, Orders, Web_Engagement, Dim_Date" class="zoomable" id="model-img" style="width:100%;height:auto;display:block;cursor:zoom-in;"></div>
     <p style="font-size:12px;color:var(--ink-muted);margin-top:8px;">Click the diagram to enlarge it.</p>
+    <div class="section-head mt-40"><div class="eyebrow">Animated</div><h2>How each table joins to the next</h2><p>The animation walks through every relationship, one key at a time: Campaign_ID, Email_ID, Customer_ID, Message_ID and Date. Click to enlarge.</p></div>
+    <div class="card" style="padding:0;overflow:hidden;"><img src="assets/data-model-joins.gif" alt="Animated data model: each relationship lights up in turn with its join key" class="zoomable" style="width:100%;height:auto;display:block;cursor:zoom-in;"></div>
     <div class="section-head mt-40"><div class="eyebrow">Reference schema</div><h2>The interactive version</h2></div>
     <div class="model-grid">
       <div class="card"><div class="schema" id="schema-grid"></div></div>
@@ -476,7 +482,7 @@
         <li><strong>Open rate uses distinct openers</strong>, not Open rows; show the human (non-machine) open rate too.</li>
         <li><strong>Delivery Rate = Delivered ÷ Recipients</strong>, a %, not delivered activities ÷ emails (369.5).</li>
         <li><strong>Web rates are session-weighted</strong>: SUM(Bounced_Sessions) ÷ SUM(Sessions), never AVERAGE(Bounce_Rate_Pct).</li>
-        <li><strong>Shares use SUM(Sessions) and ALL()</strong>, never a row count (16.7% for every source).</li>
+        <li><strong>Shares use SUM(Sessions) and ALL()</strong>, never a row count (12.5% for every source).</li>
         <li><strong>Unique_Visitors is not additive</strong>: label the sum visitor-days.</li>
         <li><strong>Revenue = Delivered orders</strong>; spend = Actual_Spend_INR.</li>
         <li>Reconcile every KPI against the equivalent SQL query before presenting.</li>
@@ -491,7 +497,7 @@
     <div class="card table-scroll join-table-wrap mt-16"><table class="dtable" id="join-paths-table"></table></div>
     <div class="section-head mt-40">
       <div class="eyebrow">Dashboard Spec</div>
-      <h2>Two dashboards, two audiences</h2>
+      <h2>Three dashboards, three audiences</h2>
       <p>Who reads this, and what decision does it drive? A favourite interview probe.</p>
     </div>
     <div class="card table-scroll"><table class="dtable" id="dash-table"></table></div>
@@ -504,7 +510,7 @@
     <div class="section-head">
       <div class="eyebrow">Data Dictionary</div>
       <h2>Every column, table by table</h2>
-      <p>Every column in the 7 source tables, with type, meaning and quirks.</p>
+      <p>Every column in the 9 source tables, with type, meaning and quirks.</p>
     </div>
     <div class="filter-bar">
       <input class="search-input" id="dd-search" type="text" placeholder="Search columns — e.g. &quot;bounce&quot;, &quot;sessions&quot;, &quot;campaign&quot;…">
@@ -539,17 +545,17 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">KPI Library</div>
-      <h2>All 37 KPIs &amp; DAX measures: the question, the logic and the answer key</h2>
+      <h2>All 60 KPIs &amp; DAX measures: the question, the logic and the answer key</h2>
       <p>Filter by dashboard. Each card gives the business question first, then the logic, the formula and a DAX measure, plus the value your dashboard should show (computed from the real dataset, blank rows excluded).</p>
     </div>
     <div class="kpi-roadmap">
       <div class="kr-step kr-p1"><div class="kr-t">P1 · Must know</div><div class="kr-n" id="kr-p1"></div><p>The 15 KPIs from the project's KPI document (8 Email + 7 Web), with corrected logic. Build these first.</p></div>
       <div class="kr-arrow">→</div>
-      <div class="kr-step kr-p2"><div class="kr-t">P2 · Important</div><div class="kr-n" id="kr-p2"></div><p>Add once P1 reconciles to SQL: volumes, bounce, human opens, CTOR, unsubscribes, spend, revenue, ROI, ROAS, sessions, CVR.</p></div>
+      <div class="kr-step kr-p2"><div class="kr-t">P2 · Important</div><div class="kr-n" id="kr-p2"></div><p>Add once P1 reconciles to SQL: human opens, CTOR, ROI, ROAS, social CTR / CPC / engagement / ROAS / profit, WhatsApp delivery, read, click and ROI.</p></div>
       <div class="kr-arrow">→</div>
-      <div class="kr-step kr-p3"><div class="kr-t">P3 · Advanced</div><div class="kr-n" id="kr-p3"></div><p>Spam rate, conversion, revenue per email, AOV, returns, paid ROAS and YoY.</p></div>
+      <div class="kr-step kr-p3"><div class="kr-t">P3 · Advanced</div><div class="kr-n" id="kr-p3"></div><p>Impressions, reach, CPM, CPA, reply &amp; opt-out rates, gross margin, channel spend, AOV, returns, YoY.</p></div>
     </div>
-    <div class="callout-yellow" style="margin:0 0 16px;"><strong>Don't build all 37 at once.</strong> Master the P1 KPIs first, get them to match the answer key, then move on.</div>
+    <div class="callout-yellow" style="margin:0 0 16px;"><strong>Don't build all 60 at once.</strong> Master the P1 KPIs first, get them to match the answer key, then move on.</div>
     <div class="filter-bar" id="kpi-tier-pills"></div>
     <div class="filter-bar">
       <input class="search-input" id="kpi-search" type="text" placeholder="Search KPIs — e.g. &quot;open rate&quot;, &quot;ROI&quot;, &quot;bounce&quot;…">
@@ -595,6 +601,59 @@
   </div>
 </section>
 
+<!-- ===================== SQL PRACTICE EDITOR ===================== -->
+<section class="view" id="view-editor">
+  <div class="wrap wide">
+    <div class="section-head">
+      <div class="eyebrow">⌨️ SQL Practice Editor · runs in your browser</div>
+      <h2>Problemset: SQL on the AXon data</h2>
+      <p>24 problems (8 Easy · 8 Medium · 8 Advanced) on 8 practice tables summarised from the full dataset: campaigns, email_performance, whatsapp_summary, social_ads_monthly, web_monthly, orders_monthly, campaign_revenue, customers_summary. The editor uses SQLite syntax; the full MySQL scripts are in the SQL Lab.</p>
+    </div>
+    <div id="ed-browse">
+      <div class="ps-cards">
+        <div class="ps-card ps-teal"><span class="ps-tag">DAILY 3 SET</span><h4>Today's Challenge</h4><p id="ps-today-sub">1 Easy · 1 Medium · 1 Advanced</p><button class="ps-go" id="ps-today-go">Solve today's set →</button></div>
+        <div class="ps-card ps-violet"><span class="ps-tag">PROGRESS</span><h4 id="ps-progress">0 / 24 Solved</h4><p id="ps-streak">0 day streak</p></div>
+        <div class="ps-card ps-amber"><span class="ps-tag">INTERVIEW PREP</span><h4>450+ SQL & BI questions</h4><p><a href="https://www.crackanalytics.com/" target="_blank" rel="noopener">CrackAnalytics ↗</a></p></div>
+      </div>
+      <div class="ps-grid">
+        <div class="ps-main">
+          <div class="ps-topics" id="ps-topics"></div>
+          <div class="ps-filters card">
+            <div class="ps-tables" id="ps-tables"></div>
+            <div class="ps-seg" id="ps-levels"></div>
+          </div>
+          <div class="ps-tools">
+            <input class="search-input" id="ps-search" type="text" placeholder="Search problems by name or number…">
+            <select id="ps-status"><option value="all">Status: All</option><option value="todo">Unsolved</option><option value="done">Solved</option></select>
+            <button class="btn-outline" id="ps-random">⤮ Pick Random</button>
+          </div>
+          <div class="card ps-table-wrap"><table class="ps-table"><thead><tr><th>Status</th><th>Title</th><th>Time</th><th>Difficulty</th><th>Solve</th></tr></thead><tbody id="ps-rows"></tbody></table></div>
+        </div>
+        <aside class="ps-side">
+          <div class="card ps-cal" id="ps-cal"></div>
+          <div class="card ps-tablesinfo"><strong>Practice tables</strong><p>8 summary tables built from the full dataset. Open a problem to see columns.</p><div id="ps-tablelist"></div></div>
+        </aside>
+      </div>
+    </div>
+    <div id="ed-solve" style="display:none;">
+      <div class="ed-solve-bar"><button class="btn-outline" id="ed-back">← Problemset</button><span id="ed-pos"></span><button class="btn-outline" id="ed-prev">‹ Prev</button><button class="btn-outline" id="ed-next">Next ›</button></div>
+      <div class="ed-shell two">
+        <div class="ed-main">
+          <div class="card ed-problem"><h3 id="ed-title"></h3><p id="ed-task"></p><div id="ed-tables" class="ed-tables"></div></div>
+          <div class="ed-editor card">
+            <div class="ed-bar"><span class="ed-dots"><i></i><i></i><i></i></span><span class="ed-file">query.sql</span>
+              <div class="ed-actions"><button class="btn-outline" id="ed-hint">💡 Hint</button><button class="btn-outline" id="ed-solution">🔓 Solution</button><button class="btn-outline" id="ed-reset">↺ Reset</button><button class="btn-blue" id="ed-run">▶ Run</button><button class="btn-ai" id="ed-check">✓ Submit</button></div></div>
+            <textarea id="ed-sql" spellcheck="false" aria-label="SQL editor"></textarea>
+          </div>
+          <div id="ed-msg"></div>
+          <div class="card ed-out" id="ed-out"></div>
+        </div>
+        <aside class="ed-schema card"><strong>Tables</strong><p style="font-size:12px;color:var(--ink-muted);margin:4px 0 8px;">Click a column to insert it.</p><div id="ed-schema"></div></aside>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ===================== EXCEL ANALYSIS ===================== -->
 <section class="view" id="view-excel">
   <div class="wrap">
@@ -636,8 +695,8 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">📊 Dashboard Gallery</div>
-      <h2>Two dashboards, four pages: the portfolio you're building</h2>
-      <p>The Email Campaign dashboard (overview + ROI) and the Web Engagement dashboard (overview + channel, device &amp; region). Each card opens the target layout computed directly from the dataset: the KPI values and chart data your Tableau and Power BI builds should reproduce, with build notes for both tools.</p>
+      <h2>Three dashboards, seven pages: the portfolio you're building</h2>
+      <p>Email Campaign (overview + ROI), Social &amp; WhatsApp (Facebook vs Instagram, WhatsApp, channel comparison) and Web Engagement (overview + channel, device &amp; region). Each card opens the target layout computed directly from the dataset: the KPI values and chart data your Tableau and Power BI builds should reproduce, with build notes for both tools.</p>
     </div>
     <div class="gallery-grid" id="gallery-grid"></div>
     <div class="section-head mt-40">
@@ -648,7 +707,7 @@
     <div class="sample-grid" id="sample-grid"></div>
     <div class="section-head mt-40">
       <div class="eyebrow">Which dashboard does what</div>
-      <h2>12 common marketing dashboards: click a name to see everything it does</h2>
+      <h2>14 common marketing dashboards: click a name to see everything it does</h2>
       <p>Each card explains the purpose, audience, KPIs, visuals and filters of a real-world marketing dashboard type, plus how to build it with the AXon tables, or what extra data you'd need.</p>
     </div>
     <div class="dash-acc-tools"><button class="btn-outline" id="acc-open-all">Expand all</button><button class="btn-outline" id="acc-close-all">Collapse all</button></div>
@@ -671,6 +730,12 @@
       <p>Fill the last two columns with your own dashboard values. Anything that doesn't tie out within ±0.1 needs a root cause, not a tweak.</p>
     </div>
     <div class="card table-scroll"><table class="dtable" id="recon-table"></table></div>
+    <div class="section-head mt-40">
+      <div class="eyebrow">Referential integrity report</div>
+      <h2>Every key across all 9 tables, checked</h2>
+      <p>Computed on the full dataset: primary-key uniqueness, every foreign key, every event date against Dim_Date, campaign windows and cross-table reconciliations. Re-run the same checks with the SQL above after you load MySQL.</p>
+    </div>
+    <div class="card table-scroll"><table class="dtable" id="integrity-table"></table></div>
     <div class="section-head mt-40">
       <div class="eyebrow">QA sign-off checklist</div>
       <h2>Before you call the dashboard "done"</h2>
@@ -938,6 +1003,7 @@
 </div>
 
 <script src="mkt-data.js"></script>
+<script src="assets/practice-db.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -10,8 +10,8 @@ const fmtN = (n) => Number(n).toLocaleString("en-IN");
 const fmtUS = (n) => Number(n).toLocaleString("en-US");
 const f1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
 const f2 = (n) => Number(n).toFixed(2);
-const inr = (n) => "₹" + Number(Math.round(n)).toLocaleString("en-IN");
-const inrL = (n) => "₹" + (Number(n) / 1e5).toFixed(2) + " L";
+const inr = (n) => (n < 0 ? "−" : "") + "₹" + Math.abs(Math.round(n)).toLocaleString("en-IN");
+const inrL = (n) => (n < 0 ? "−" : "") + "₹" + (Math.abs(Number(n)) / 1e5).toFixed(2) + " L";
 const inrCr = (n) => "₹" + (Number(n) / 1e7).toFixed(2) + " Cr";
 const mil = (n) => (Number(n) / 1e6).toFixed(2) + "M";
 const TT = A.type_table || {};
@@ -68,7 +68,7 @@ const M_KPIS = [
     formula: "DIVIDE(SUMX(Web_Engagement, Web_Engagement[Sessions] * Web_Engagement[Avg_Session_Duration_Min]), SUM(Web_Engagement[Sessions]))" },
   { name: "Traffic Source Breakdown", cat: "Channel & Device", table: "Web_Engagement",
     desc: "Share of traffic by source.",
-    definition: "Sessions by source ÷ all sessions. The document's 'count of rows' gives 16.7% to every source because every source has one row per day × device × region.",
+    definition: "Sessions by source ÷ all sessions. The document's 'count of rows' gives 12.5% to every source because every source has one row per day × device × region.",
     formula: "DIVIDE(SUM(Web_Engagement[Sessions]), CALCULATE(SUM(Web_Engagement[Sessions]), ALL(Web_Engagement[Traffic_Source])))" },
   { name: "Device Usage Share", cat: "Channel & Device", table: "Web_Engagement",
     desc: "Share of traffic by device.",
@@ -105,38 +105,67 @@ const M_KPIS = [
   { name: "Pages per Session", cat: "Web Engagement", table: "Web_Engagement", desc: "Page views ÷ sessions.", formula: "DIVIDE(SUM(Web_Engagement[Page_Views]), SUM(Web_Engagement[Sessions]))" },
   { name: "Paid ROAS (Web)", cat: "Channel & Device", table: "Web_Engagement", desc: "Web revenue ÷ ad spend for paid sources.", formula: "DIVIDE(SUM(Web_Engagement[Revenue_INR]), SUM(Web_Engagement[Ad_Spend_INR]))" },
   { name: "Sessions YoY %", cat: "Web Engagement", table: "Web_Engagement, Dim_Date", desc: "2024 sessions vs 2023.", formula: "DIVIDE([Sessions], CALCULATE([Sessions], SAMEPERIODLASTYEAR(Dim_Date[Date]))) - 1" },
+  // ---- Social media: Facebook & Instagram (Social_Ads_Daily, platform-reported) ----
+  { name: "Ad Spend (Facebook + Instagram)", cat: "Social Media", table: "Social_Ads_Daily", desc: "Money spent on Meta ads.", formula: "SUM(Social_Ads_Daily[Spend_INR])" },
+  { name: "Impressions", cat: "Social Media", table: "Social_Ads_Daily", desc: "Times an ad was shown (one person can see it many times).", formula: "SUM(Social_Ads_Daily[Impressions])" },
+  { name: "Reach", cat: "Social Media", table: "Social_Ads_Daily", desc: "Unique people who saw an ad — per row. Not additive across days, cities or formats.", definition: "Ads Manager de-duplicates reach per row. Summing rows counts the same person again, so SUM(Reach) is an upper bound.", formula: "SUM(Social_Ads_Daily[Reach])  -- upper bound only" },
+  { name: "Link CTR", cat: "Social Media", table: "Social_Ads_Daily", desc: "Link clicks ÷ impressions.", formula: "DIVIDE(SUM(Social_Ads_Daily[Link_Clicks]), SUM(Social_Ads_Daily[Impressions]))" },
+  { name: "CPC (Cost per Click)", cat: "Social Media", table: "Social_Ads_Daily", desc: "Spend ÷ link clicks.", formula: "DIVIDE([Ad Spend (Facebook + Instagram)], SUM(Social_Ads_Daily[Link_Clicks]))" },
+  { name: "CPM (Cost per 1,000 Impressions)", cat: "Social Media", table: "Social_Ads_Daily", desc: "Spend ÷ impressions × 1,000.", formula: "DIVIDE([Ad Spend (Facebook + Instagram)], [Impressions]) * 1000" },
+  { name: "Engagement Rate (Social)", cat: "Social Media", table: "Social_Ads_Daily", desc: "(Likes + Comments + Shares + Saves) ÷ impressions.", definition: "Total engagements ÷ total impressions. Averaging each row's rate, or dividing by Reach, gives a different number: say which one you report.", formula: "DIVIDE(SUM(Likes) + SUM(Comments) + SUM(Shares) + SUM(Saves), [Impressions])" },
+  { name: "Social Conversion Rate", cat: "Social Media", table: "Social_Ads_Daily", desc: "Platform-reported purchases ÷ link clicks.", formula: "DIVIDE(SUM(Social_Ads_Daily[Purchases]), SUM(Social_Ads_Daily[Link_Clicks]))" },
+  { name: "Cost per Purchase (CPA)", cat: "Social Media", table: "Social_Ads_Daily", desc: "Spend ÷ platform-reported purchases.", formula: "DIVIDE([Ad Spend (Facebook + Instagram)], SUM(Social_Ads_Daily[Purchases]))" },
+  { name: "Social ROAS (platform-reported)", cat: "Social Media", table: "Social_Ads_Daily", desc: "Purchase value reported by Meta ÷ spend.", definition: "Meta counts click-through and view-through purchases, so its numbers are higher than what your own Orders table credits. Never add them to Orders revenue.", formula: "DIVIDE(SUM(Social_Ads_Daily[Purchase_Value_INR]), [Ad Spend (Facebook + Instagram)])" },
+  { name: "Ad Profit & Profit %", cat: "Social Media", table: "Social_Ads_Daily", desc: "Gross margin on ad purchases minus ad spend, and as % of purchase value.", formula: "Ad Profit = SUM(Purchase_Gross_Margin_INR) - [Ad Spend]  ·  Profit % = DIVIDE([Ad Profit], SUM(Purchase_Value_INR))" },
+  // ---- WhatsApp (WhatsApp_Messages) ----
+  { name: "WhatsApp Messages Sent", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Template messages sent to opted-in customers.", formula: "COUNTROWS(WhatsApp_Messages)" },
+  { name: "WhatsApp Delivery Rate", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Messages that reached the phone ÷ sent.", definition: "Message_Status holds the LAST status, so a read message shows 'Read', not 'Delivered'. Delivered = Delivered + Read.", formula: "DIVIDE(CALCULATE(COUNTROWS(WhatsApp_Messages), WhatsApp_Messages[Message_Status] IN {\"Delivered\", \"Read\"}), [WhatsApp Messages Sent])" },
+  { name: "WhatsApp Read Rate", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Read ÷ delivered.", formula: "DIVIDE(CALCULATE(COUNTROWS(WhatsApp_Messages), WhatsApp_Messages[Message_Status] = \"Read\"), [WA Delivered])" },
+  { name: "WhatsApp Click Rate", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Button clicks ÷ delivered.", formula: "DIVIDE(CALCULATE(COUNTROWS(WhatsApp_Messages), WhatsApp_Messages[Button_Clicked] = \"Yes\"), [WA Delivered])" },
+  { name: "WhatsApp Reply Rate", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Replies ÷ delivered.", formula: "DIVIDE(CALCULATE(COUNTROWS(WhatsApp_Messages), WhatsApp_Messages[Replied] = \"Yes\"), [WA Delivered])" },
+  { name: "WhatsApp Opt-out Rate", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Opt-outs (STOP) ÷ delivered.", formula: "DIVIDE(CALCULATE(COUNTROWS(WhatsApp_Messages), WhatsApp_Messages[Opted_Out] = \"Yes\"), [WA Delivered])" },
+  { name: "Cost per Delivered Message", cat: "WhatsApp", table: "WhatsApp_Messages", desc: "Meta conversation charges ÷ delivered messages (failed messages are free).", formula: "DIVIDE(SUM(WhatsApp_Messages[Cost_INR]), [WA Delivered])" },
+  { name: "WhatsApp ROI %", cat: "WhatsApp", table: "Orders, Campaigns", desc: "(Delivered orders attributed to WhatsApp − spend) ÷ spend.", formula: "DIVIDE([WA Attributed Revenue] - [WA Spend], [WA Spend])" },
+  // ---- Channel comparison & profit ----
+  { name: "Spend by Channel", cat: "Channel & Profit", table: "Campaigns", desc: "Actual spend for Email, Facebook, Instagram and WhatsApp campaigns.", formula: "SUM(Campaigns[Actual_Spend_INR]) by Campaigns[Channel]" },
+  { name: "ROAS by Channel", cat: "Channel & Profit", table: "Orders, Social_Ads_Daily, Campaigns", desc: "Revenue ÷ spend per channel. Email & WhatsApp from Orders (last click), Facebook & Instagram from Meta (platform-reported).", definition: "Two different attribution sources: label them, don't rank them as if they were measured the same way.", formula: "DIVIDE([Channel Revenue], [Channel Spend])" },
+  { name: "Gross Margin %", cat: "Channel & Profit", table: "Orders", desc: "(Net revenue − product cost) ÷ net revenue, Delivered orders.", formula: "DIVIDE([Net Revenue (Delivered)] - CALCULATE(SUM(Orders[Product_Cost_INR]), Orders[Order_Status] = \"Delivered\"), [Net Revenue (Delivered)])" },
+  { name: "Total Marketing Spend", cat: "Channel & Profit", table: "Campaigns, Web_Engagement", desc: "All campaign spend plus Google Ads spend from web data.", formula: "SUM(Campaigns[Actual_Spend_INR]) + CALCULATE(SUM(Web_Engagement[Ad_Spend_INR]), Web_Engagement[Traffic_Source] = \"Google Ads\")" },
 ];
-const M_KPI_CATS = ["All", "Email Delivery", "Email Engagement", "Campaign Performance", "Revenue & ROI", "Web Engagement", "Channel & Device"];
+const M_KPI_CATS = ["All", "Email Delivery", "Email Engagement", "Campaign Performance", "Revenue & ROI", "Social Media", "WhatsApp", "Channel & Profit", "Web Engagement", "Channel & Device"];
 
 /* ---------------- MODEL ---------------- */
 const M_RELATIONSHIPS = [
-  "Campaigns → Emails  (Campaign_ID, 1:Many)",
+  "Campaigns → Emails  (Campaign_ID, 1:Many) — Email campaigns only",
+  "Campaigns → Social_Ads_Daily  (Campaign_ID, 1:Many) — Facebook & Instagram campaigns",
+  "Campaigns → WhatsApp_Messages  (Campaign_ID, 1:Many) — WhatsApp campaigns",
   "Emails → Activities  (Email_ID, 1:Many)",
-  "Customers → Activities  (Customer_ID, 1:Many)",
-  "Customers → Orders  (Customer_ID, 1:Many)",
-  "Emails → Orders  (Email_ID = Attributed_Email_ID, 1:Many, inactive or used for attribution only)",
-  "Dim_Date → Emails  (Date = DATE(Email_Sent_Date), 1:Many)",
-  "Dim_Date → Activities  (Date = DATE(Activity_Date), 1:Many)",
-  "Dim_Date → Orders  (Date = DATE(Order_Date), 1:Many)",
-  "Dim_Date → Web_Engagement  (Date, 1:Many)",
-  "Web_Engagement has no customer or campaign key: it describes ALL site traffic, not just the 12,000 subscribers",
+  "Customers → Activities / WhatsApp_Messages / Orders  (Customer_ID, 1:Many)",
+  "Campaigns → Orders  (Campaign_ID = Attributed_Campaign_ID, 1:Many) — attribution",
+  "Emails → Orders (Attributed_Email_ID) and WhatsApp_Messages → Orders (Attributed_Message_ID) — inactive, used for touch-level drill-down",
+  "Dim_Date → every fact  (Date = DATE(event time), 1:Many): Emails, Activities, WhatsApp_Messages, Social_Ads_Daily, Orders, Web_Engagement",
+  "Web_Engagement has no customer or campaign key: it describes ALL site traffic. It meets Social_Ads_Daily only on Date + Platform (= Traffic_Source) + Device + Region for spend reconciliation",
 ];
 const M_LOAD_ORDER = [
-  "1. Dim_Date — 731 days (2023-01-01 → 2024-12-31)",
-  "2. Campaigns — 61 campaigns",
+  "1. Dim_Date — 762 days (2023-01-01 → 2025-01-31, Is_Reporting_Period = 2023–2024)",
+  "2. Campaigns — 103 campaigns (61 Email · 14 Facebook · 14 Instagram · 14 WhatsApp)",
   "3. Customers — 12,000 subscribers",
   "4. Emails — 471 sends",
-  "5. Activities — 313,895 recipient-level events (use LOAD DATA INFILE, not the import wizard)",
-  "6. Orders — 45,978 orders with last-click email attribution",
-  "7. Web_Engagement — 52,560 rows (date × source × device × region)",
+  "5. Activities — 313,895 email events (use LOAD DATA, not the import wizard)",
+  "6. WhatsApp_Messages — 73,221 messages",
+  "7. Social_Ads_Daily — 41,736 rows (date × campaign × ad format × city × device)",
+  "8. Orders — 47,604 orders with last-click Email/WhatsApp attribution",
+  "9. Web_Engagement — 70,080 rows (date × 8 sources × 3 devices × 4 regions)",
 ];
 const M_CALC_FIELDS = [
   "Activity_Day (Activities) — DATE(Activity_Date): the key to Dim_Date, because Activity_Date carries a time",
   "Is_Machine_Open (Activities) — 1 when an Open happens < 15 seconds after the same recipient's Delivered row (Apple Mail Privacy Protection)",
+  "Is_Delivered (WhatsApp_Messages) — Message_Status IN ('Delivered','Read'): status is the LAST state, so Read messages were delivered too",
+  "Sent_Day (WhatsApp_Messages) — DATE(Sent_Time) for the Dim_Date relationship",
+  "Engagements (Social_Ads_Daily) — Likes + Comments + Shares + Saves",
   "Send_Time_Band (Emails) — Morning 8–11 / Afternoon 12–16 / Evening 17–21 from HOUR(Email_Sent_Date)",
-  "Is_Personalised_Subject (Emails) — already in the data; derived from the {{FirstName}} token",
   "Campaign_Status (Campaigns) — 'Always-on' when End_Date IS NULL, else 'Closed'",
-  "Year_Month (Dim_Date) — sortable yyyy-mm label for every trend chart",
+  "Gross_Profit (Orders) — Net_Revenue_INR − Product_Cost_INR",
 ];
 const M_GOTCHAS = [
   { t: "The KPI document's Delivery Rate is not a rate", d: `'Delivered activities ÷ unique emails' = ${fmtN(A.delivered)} ÷ ${A.emails} = ${A.doc_delivery}. That's delivered recipients per email send. A rate needs the same unit on top and bottom: Delivered ÷ Recipients = ${A.delivery_rate}%.` },
@@ -145,41 +174,50 @@ const M_GOTCHAS = [
   { t: "CTR has three definitions", d: `Click rows ÷ Open rows = ${A.doc_ctr}% (document). Unique clickers ÷ delivered = ${A.unique_ctr}% (CTR). Unique clickers ÷ unique openers = ${A.ctor}% (CTOR). Name the one you use on the card.` },
   { t: "Don't sum Unique_Visitors", d: `SUM(Unique_Visitors) = ${fmtN(A.uv_sum)} 'visitors', but the same person visiting on two days is counted twice. It's visitor-days. Use Sessions (${fmtN(A.sessions)}) as the volume measure, or label it honestly.` },
   { t: "Don't average a rate column", d: `AVERAGE(Bounce_Rate_Pct) = ${A.bounce_avg}% but the true session-weighted bounce rate is ${A.bounce_weighted}%. Small rows (Tablet, East) get the same weight as big ones in a plain average. Same for duration: ${A.dur_avg} vs ${A.dur_weighted} min.` },
-  { t: "Counting rows gives 16.7% to every source", d: "The document says 'count of rows' for Traffic Source Breakdown. Every source has exactly one row per day × device × region, so every source gets 1/6 = 16.7%. Sum Sessions instead: Organic Search 30.3%, Paid Ads 23.0% … Referral 5.2%." },
+  { t: "Counting rows gives 12.5% to every source", d: "The document says 'count of rows' for Traffic Source Breakdown. Every source has exactly one row per day × device × region, so each of the 8 sources gets 1/8 = 12.5%. Sum Sessions instead: Organic Search 30.6%, Google Ads 23.2% … WhatsApp 1.7%." },
   { t: "Revenue = Delivered orders only", d: `All attributed orders = ${inr(A.attr_rev_all_status)}, but returned and cancelled orders are not revenue. Delivered only = ${inr(A.attr_rev)}. ROI changes from ${f1((A.attr_rev_all_status - A.spend) / A.spend * 100)}% to ${A.roi}%.` },
+  { t: "WhatsApp 'Delivered' hides the read messages", d: `Message_Status is the LAST status. Counting only 'Delivered' rows gives ${fmtN(A.wa ? A.wa.delivered_status_only : 0)} (${A.wa ? A.wa.wrong_delivery_rate : 0}% delivery rate); every 'Read' message was delivered too, so Delivered = Delivered + Read = ${fmtN(A.wa ? A.wa.delivered : 0)} (${A.wa ? A.wa.delivery_rate : 0}%).` },
+  { t: "Reach is not additive", d: `Each Social_Ads_Daily row has its own de-duplicated Reach. Summing rows gives ${mil(A.social ? A.social.reach : 0)}, but the same person seen in Mumbai on Monday and Tuesday is counted twice. Report Impressions and frequency per campaign, and treat summed reach as an upper bound.` },
+  { t: "Platform-reported ≠ your orders", d: `Meta reports ${fmtN(A.social ? A.social.purchases : 0)} purchases worth ${inrCr(A.social ? A.social.value : 0)}, including view-through conversions. Those orders are not in the Orders table (which is subscriber orders with Email/WhatsApp attribution). Show the source next to every channel ROAS and never add the two revenues together.` },
+  { t: "Instagram looks great on engagement, not on profit", d: `Instagram's engagement rate is ${A.social_platform ? A.social_platform.Instagram.er : 0}% vs Facebook's ${A.social_platform ? A.social_platform.Facebook.er : 0}%, but its ROAS is ${A.social_platform ? A.social_platform.Instagram.roas : 0} vs ${A.social_platform ? A.social_platform.Facebook.roas : 0} and its ad profit is negative after product cost. Likes are not revenue.` },
 ];
 const M_JOIN_PATHS = [
   ["Emails by campaign", "Emails[Campaign_ID] = Campaigns[Campaign_ID]"],
   ["Activities by email / campaign", "Activities[Email_ID] = Emails[Email_ID] → Emails[Campaign_ID] = Campaigns[Campaign_ID]"],
-  ["Activities by customer attributes", "Activities[Customer_ID] = Customers[Customer_ID]"],
+  ["Activities / WhatsApp by customer", "Activities[Customer_ID] = Customers[Customer_ID]; WhatsApp_Messages[Customer_ID] = Customers[Customer_ID]"],
+  ["Social ads by campaign", "Social_Ads_Daily[Campaign_ID] = Campaigns[Campaign_ID] (Platform = Channel)"],
+  ["WhatsApp by campaign", "WhatsApp_Messages[Campaign_ID] = Campaigns[Campaign_ID]"],
   ["Machine-open flag", "Open row JOIN Delivered row ON same Email_ID AND Customer_ID; TIMESTAMPDIFF(SECOND, delivered, open) < 15"],
   ["Campaign revenue / ROI", "Orders[Attributed_Campaign_ID] = Campaigns[Campaign_ID] AND Orders[Order_Status] = 'Delivered'"],
-  ["Trend over time", "DATE(Activity_Date / Email_Sent_Date / Order_Date) = Dim_Date[Date]; Web_Engagement[Date] = Dim_Date[Date]"],
-  ["Email mart view", "Emails LEFT JOIN (Activities aggregated per Email_ID) LEFT JOIN Campaigns — exactly vw_email_performance"],
+  ["Touch-level drill-down", "Orders[Attributed_Email_ID] = Emails[Email_ID]; Orders[Attributed_Message_ID] = WhatsApp_Messages[Message_ID]"],
+  ["Ad spend reconciliation", "Social_Ads_Daily (Date, Platform, Device_Type, Region) = Web_Engagement (Date, Traffic_Source, Device_Type, Region)"],
+  ["Trend over time", "DATE(any event time) = Dim_Date[Date]"],
 ];
 const M_GLOBAL_FILTERS = [
   ["Date Range", "Dim_Date.Date"], ["Year / Month", "Dim_Date.Year, Dim_Date.Year_Month"], ["Festive Season", "Dim_Date.Festive_Season"],
-  ["Campaign Type", "Campaigns.Campaign_Type"], ["Campaign", "Campaigns.Campaign_Name"], ["Audience Segment", "Emails.Audience_Segment"],
-  ["Loyalty Tier", "Customers.Loyalty_Tier"], ["Email Client", "Customers.Email_Client"],
-  ["Traffic Source (web page)", "Web_Engagement.Traffic_Source"], ["Device (web page)", "Web_Engagement.Device_Type"], ["Region", "Customers.Region / Web_Engagement.Region"],
+  ["Channel", "Campaigns.Channel (Email / Facebook / Instagram / WhatsApp)"], ["Campaign Type", "Campaigns.Campaign_Type"], ["Campaign", "Campaigns.Campaign_Name"],
+  ["Ad Format (social page)", "Social_Ads_Daily.Ad_Format"], ["City (social page)", "Social_Ads_Daily.City"], ["Device", "Social_Ads_Daily.Device_Type / Web_Engagement.Device_Type"],
+  ["Loyalty Tier", "Customers.Loyalty_Tier"], ["Email Client", "Customers.Email_Client"], ["Traffic Source (web page)", "Web_Engagement.Traffic_Source"], ["Region", "Customers.Region / Web_Engagement.Region"],
 ];
 const M_DASHBOARDS = [
   ["1", "Email Campaign Performance", "CMO, CRM / Email Marketing Manager", "Emails Sent, Delivery Rate, Unique & Human Open Rate, CTR, CTOR, Unsubscribe Rate, ROI", "KPI cards, Activity breakdown donut, Sent vs Activity timeline, Top campaigns, ROI by campaign type"],
-  ["2", "Web Engagement", "Digital Marketing / Growth Manager", "Sessions, Unique Visitors, Bounce Rate (weighted), Avg Session Duration, Conversion Rate", "KPI cards, Traffic source share, Device share, Region ranking, Monthly trend"],
+  ["2", "Social & WhatsApp Performance", "CMO, Social Media Manager, CRM", "Ad Spend, Impressions, CTR, CPC, Engagement Rate, ROAS, Profit %; WhatsApp Delivery, Read, Click, ROI", "Platform cards (Facebook / Instagram), ROAS by campaign type, ad-format comparison, city table, WhatsApp funnel"],
+  ["3", "Web Engagement", "Digital Marketing / Growth Manager", "Sessions, Unique Visitors, Bounce Rate (weighted), Avg Session Duration, Conversion Rate", "KPI cards, Traffic source share, Device share, Region ranking, Monthly trend"],
 ];
 
 /* ---------------- DATA DICTIONARY ---------------- */
 const M_DATA_DICTIONARY = [
-  { table: "Campaigns", rows: "61 rows", cols: [
-    ["Campaign_ID", "Text", "Unique campaign key (PK)", "CAMP-0001 … CAMP-0061"], ["Campaign_Name", "Text", "Campaign name", "Year in the name: 'Diwali Mega Sale 2024'"],
-    ["Campaign_Type", "Text", "8 types", "Newsletter, Promotional, Festive, Product Launch, Re-engagement, Loyalty, Welcome, Cart Abandonment"],
-    ["Objective", "Text", "Awareness / Engagement / Conversion / Retention / Reactivation", "—"], ["Channel", "Text", "Always 'Email'", "Constant column: ignore in visuals"],
-    ["Target_Segment", "Text", "Planned audience", "—"], ["Product_Category", "Text", "Category promoted", "'Mixed' = whole catalogue"],
-    ["Start_Date", "Date", "Campaign start", "—"], ["End_Date", "Date", "Campaign end", "NULL for 2 always-on campaigns (by design)"],
-    ["Budget_INR", "Integer", "Approved budget (₹)", "—"], ["Actual_Spend_INR", "Integer", "Money actually spent (₹)", "Use this for ROI"],
-    ["Discount_Offer_Pct", "Integer", "Headline discount %", "—"], ["Campaign_Manager", "Text", "Owner", "—"]] },
+  { table: "Campaigns", rows: "103 rows", cols: [
+    ["Campaign_ID", "Text", "Unique campaign key (PK)", "CAMP-0001 … CAMP-0103"], ["Campaign_Name", "Text", "Campaign name", "FB – / IG – / WA – prefixes for social and WhatsApp"],
+    ["Channel", "Text", "Email / Facebook / Instagram / WhatsApp", "Decides which fact table holds the campaign's events"],
+    ["Campaign_Type", "Text", "Newsletter, Promotional, Festive, Product Launch, Re-engagement, Loyalty, Welcome, Cart Abandonment, Acquisition, Retargeting, Awareness, Influencer", "—"],
+    ["Objective", "Text", "Awareness / Engagement / Conversion / Retention / Reactivation", "—"], ["Target_Segment", "Text", "Planned audience", "Lookalike, retargeting, opt-in segments for social / WhatsApp"],
+    ["Product_Category", "Text", "Category promoted", "'Mixed' = whole catalogue"], ["Start_Date", "Date", "Campaign start", "—"], ["End_Date", "Date", "Campaign end", "NULL for 2 always-on email programmes"],
+    ["Budget_INR", "Integer", "Approved budget (₹)", "—"], ["Actual_Spend_INR", "Integer", "Money actually spent (₹)", "Social = SUM of daily ad spend; WhatsApp = message cost + creative"],
+    ["Discount_Offer_Pct", "Integer", "Headline discount %", "—"], ["Campaign_Manager", "Text", "Owner", "—"],
+    ["UTM_Source", "Text", "email / facebook / instagram / whatsapp", "Matches the tracking links"], ["UTM_Campaign", "Text", "Tracking code, e.g. em_diwali-mega-sale-2024", "—"]] },
   { table: "Emails", rows: "471 rows", cols: [
-    ["Email_ID", "Text", "Unique send key (PK)", "EMAIL-00001 …"], ["Campaign_ID", "Text", "FK → Campaigns", "—"],
+    ["Email_ID", "Text", "Unique send key (PK)", "EMAIL-00001 …"], ["Campaign_ID", "Text", "FK → Campaigns (Channel = Email)", "—"],
     ["Email_Subject", "Text", "Subject line", "{{FirstName}} = personalisation token"], ["Email_Sent_Date", "DateTime", "Send timestamp", "Always inside the campaign's dates"],
     ["Email_Sequence", "Integer", "Position in the campaign (1, 2, 3 …)", "—"], ["AB_Variant", "Text", "A / B subject test", "Blank when no test (441 rows)"],
     ["Audience_Segment", "Text", "Segment sent to", "—"], ["Recipients", "Integer", "Addresses sent to", `= Delivered + Bounced rows for the email; total ${fmtN(A.sent)}`],
@@ -187,57 +225,78 @@ const M_DATA_DICTIONARY = [
   { table: "Activities", rows: "313,895 rows", cols: [
     ["Activity_ID", "Text", "Unique event key (PK)", "ACT-0000001 …"], ["Email_ID", "Text", "FK → Emails", "—"], ["Customer_ID", "Text", "FK → Customers", "—"],
     ["Activity_Type", "Text", "Delivered, Bounced, Open, Click, Unsubscribe, Spam Complaint", "Repeat Open/Click rows per recipient are normal"],
-    ["Activity_Date", "DateTime", "Event timestamp", `Never before the send; ${A.acts_after_calendar || 36} rows fall in Jan 2025, after Dim_Date ends`],
+    ["Activity_Date", "DateTime", "Event timestamp", "Never before the send; late opens run into Jan 2025 (covered by Dim_Date)"],
     ["Bounce_Type", "Text", "Hard / Soft", "Only on Bounced rows"], ["Link_Name", "Text", "Link clicked", "Only on Click rows"], ["Device_Type", "Text", "Mobile / Desktop / Tablet", "Only on Open and Click rows"]] },
+  { table: "WhatsApp_Messages", rows: "73,221 rows", cols: [
+    ["Message_ID", "Text", "Unique message key (PK)", "WA-0000001 …"], ["Campaign_ID", "Text", "FK → Campaigns (Channel = WhatsApp)", "—"], ["Customer_ID", "Text", "FK → Customers", "Only opted-in customers"],
+    ["Template_Name", "Text", "Approved template used", "e.g. diwali_countdown_d7"], ["Sent_Time", "DateTime", "Sent by our system", "—"],
+    ["Message_Status", "Text", "Read / Delivered / Failed", "LAST status: a Read message was also delivered"], ["Failure_Reason", "Text", "Why it failed", "Only on Failed rows"],
+    ["Delivered_Time", "DateTime", "Reached the phone", "NULL when Failed"], ["Read_Time", "DateTime", "Blue ticks", "NULL when not read (or read receipts off)"],
+    ["Button_Clicked", "Yes/No", "Clicked the CTA button", "—"], ["Click_Time", "DateTime", "Click timestamp", "Used for attribution"], ["Replied", "Yes/No", "Customer replied", "—"],
+    ["Opted_Out", "Yes/No", "Replied STOP / blocked", "Customer is not messaged again"], ["Cost_INR", "Decimal", "Meta marketing conversation charge", "₹0.73 (2023) / ₹0.78 (2024); 0 when Failed"]] },
+  { table: "Social_Ads_Daily", rows: "41,736 rows", cols: [
+    ["Ad_Row_ID", "Text", "Row key (PK)", "SOC-000001 …"], ["Date", "Date", "Day", "—"], ["Campaign_ID", "Text", "FK → Campaigns (Facebook / Instagram)", "—"],
+    ["Platform", "Text", "Facebook / Instagram", "= Campaigns.Channel"], ["Ad_Format", "Text", "Image, Carousel, Video, Collection, Reel, Story", "Reels & Stories only on Instagram"],
+    ["City", "Text", "Targeted city (8 metros)", "—"], ["Region", "Text", "Region of the city", "Matches Web_Engagement.Region"], ["Device_Type", "Text", "Mobile / Desktop", "—"],
+    ["Impressions", "Integer", "Times shown", "—"], ["Reach", "Integer", "Unique people in this row", "Not additive across rows"], ["Link_Clicks", "Integer", "Clicks to the site", "—"],
+    ["Landing_Page_Views", "Integer", "Clicks where the page loaded", "≈ 78% of clicks"], ["Add_To_Cart", "Integer", "Add-to-cart events (pixel)", "—"],
+    ["Likes", "Integer", "Reactions", "—"], ["Comments", "Integer", "Comments", "—"], ["Shares", "Integer", "Shares", "—"], ["Saves", "Integer", "Saves", "High on Instagram"],
+    ["Video_Views_3s", "Integer", "3-second video views", "0 for Image/Carousel/Collection"], ["Spend_INR", "Decimal", "Ad spend (₹)", "SUM by Date × Platform × Device × Region = Web_Engagement.Ad_Spend_INR"],
+    ["Purchases", "Integer", "Purchases reported by Meta", "Includes view-through; not in Orders"], ["Purchase_Value_INR", "Decimal", "Value of those purchases", "Platform-reported"],
+    ["Purchase_Gross_Margin_INR", "Decimal", "Product margin on those purchases", "Profit = margin − spend"]] },
   { table: "Customers", rows: "12,000 rows", cols: [
     ["Customer_ID", "Text", "Subscriber key (PK)", "CUST-000001 …"], ["Signup_Date", "Date", "Joined AXon", "Some before 2023"], ["City", "Text", "City", "Indian cities"],
-    ["State", "Text", "State", "—"], ["Region", "Text", "North / South / East / West", "—"], ["Age_Band", "Text", "Age group", "—"], ["Gender", "Text", "Female / Male / Other", "—"],
-    ["Acquisition_Channel", "Text", "First touch channel", "—"], ["Email_Client", "Text", "Gmail / Apple Mail / Outlook / Other", "Apple Mail = machine opens"],
-    ["Loyalty_Tier", "Text", "Bronze / Silver / Gold / Platinum", "—"], ["Email_Opt_In", "Yes/No", "Currently subscribed", `${fmtN(A.opt_in_yes)} Yes`], ["Unsubscribe_Date", "DateTime", "When they unsubscribed", "NULL if subscribed"]] },
-  { table: "Orders", rows: "45,978 rows", cols: [
+    ["State", "Text", "State", "—"], ["Region", "Text", "North / South / East / West", "—"], ["City_Tier", "Text", "Tier 1 / 2 / 3", "—"], ["Age_Band", "Text", "Age group", "—"], ["Gender", "Text", "Female / Male / Other", "—"],
+    ["Preferred_Language", "Text", "Language for communication", "—"], ["Acquisition_Channel", "Text", "First touch channel", "—"], ["Email_Client", "Text", "Gmail / Apple Mail / Outlook / Other", "Apple Mail = machine opens"],
+    ["Loyalty_Tier", "Text", "Bronze / Silver / Gold / Platinum", "—"], ["Email_Opt_In", "Yes/No", "Currently subscribed to email", `${fmtN(A.opt_in_yes)} Yes`], ["Unsubscribe_Date", "DateTime", "Email unsubscribe", "NULL if subscribed"],
+    ["WhatsApp_Opt_In", "Yes/No", "Currently opted in to WhatsApp", `${fmtN(A.wa ? A.wa.opted_in : 0)} Yes`], ["WhatsApp_Opt_In_Date", "Date", "Consent date", "No message is sent before it"], ["WhatsApp_Opt_Out_Date", "Date", "Opt-out date", "NULL if still opted in"]] },
+  { table: "Orders", rows: "47,604 rows", cols: [
     ["Order_ID", "Text", "Order key (PK)", "—"], ["Customer_ID", "Text", "FK → Customers", "—"], ["Order_Date", "DateTime", "Order timestamp", "—"],
     ["Product_Category", "Text", "5 categories", "—"], ["Units", "Integer", "Units", "—"], ["Gross_Amount_INR", "Decimal", "Before discount (₹)", "—"], ["Discount_INR", "Decimal", "Discount (₹)", "—"],
-    ["Net_Revenue_INR", "Decimal", "Gross − Discount (₹)", "Revenue counts Delivered only"], ["Order_Channel", "Text", "Website / App", "—"], ["Payment_Mode", "Text", "UPI / Card / COD …", "—"],
-    ["Order_Status", "Text", "Delivered / Returned / Cancelled", `${A.return_rate}% returned, ${A.cancel_rate}% cancelled`],
-    ["Attributed_Email_ID", "Text", "Email credited (last click ≤ 72 h before the order)", "NULL = not email-driven"], ["Attributed_Campaign_ID", "Text", "Campaign of that email", "NULL = not email-driven"]] },
-  { table: "Web_Engagement", rows: "52,560 rows", cols: [
-    ["Date", "Date", "Day", "2024-03-12 missing (tracking outage)"], ["Traffic_Source", "Text", "6 sources", "—"], ["Device_Type", "Text", "Mobile / Desktop / Tablet", "—"], ["Region", "Text", "4 regions", "—"],
+    ["Net_Revenue_INR", "Decimal", "Gross − Discount (₹)", "Revenue counts Delivered only"], ["Product_Cost_INR", "Decimal", "Cost of goods (₹)", "Gross profit = Net − Cost"], ["Coupon_Code", "Text", "Coupon used", "NULL when no discount"],
+    ["Order_Channel", "Text", "Website / Mobile App", "—"], ["Payment_Mode", "Text", "UPI / Card / COD …", "—"], ["Order_Status", "Text", "Delivered / Returned / Cancelled", `${A.return_rate}% returned, ${A.cancel_rate}% cancelled`],
+    ["Attributed_Channel", "Text", "Email / WhatsApp / Not attributed", "Last click within 72 h"], ["Attributed_Campaign_ID", "Text", "FK → Campaigns", "NULL when not attributed"],
+    ["Attributed_Email_ID", "Text", "FK → Emails", "Filled only for Email"], ["Attributed_Message_ID", "Text", "FK → WhatsApp_Messages", "Filled only for WhatsApp"]] },
+  { table: "Web_Engagement", rows: "70,080 rows", cols: [
+    ["Date", "Date", "Day", "2024-03-12 missing (tracking outage)"], ["Traffic_Source", "Text", "Organic Search, Google Ads, Facebook, Instagram, WhatsApp, Email, Direct, Referral", "8 sources"], ["Device_Type", "Text", "Mobile / Desktop / Tablet", "—"], ["Region", "Text", "4 regions", "—"],
     ["Sessions", "Integer", "Visits", "The weight for every rate"], ["Unique_Visitors", "Integer", "Distinct visitors in this row", "Not additive across rows"], ["New_Visitors", "Integer", "First-time visitors", "—"],
     ["Page_Views", "Integer", "Pages viewed", "—"], ["Bounced_Sessions", "Integer", "Single-page sessions", "—"], ["Bounce_Rate_Pct", "Decimal", "Row-level bounce %", "Don't AVERAGE: weight by Sessions"],
-    ["Avg_Session_Duration_Min", "Decimal", "Row-level average minutes", "Weight by Sessions"], ["Conversions", "Integer", "Purchases (all visitors)", "—"], ["Revenue_INR", "Decimal", "Web revenue (₹)", "All visitors, not just subscribers"], ["Ad_Spend_INR", "Decimal", "Media spend", "0 for unpaid sources"]] },
-  { table: "Dim_Date", rows: "731 rows", cols: [
-    ["Date", "Date", "PK, every day 2023–2024", "—"], ["Year", "Integer", "—", "—"], ["Quarter", "Text", "Q1–Q4", "—"], ["Month_Num", "Integer", "—", "Sort Month_Name by this"], ["Month_Name", "Text", "Jan…Dec", "—"],
+    ["Avg_Session_Duration_Min", "Decimal", "Row-level average minutes", "Weight by Sessions"], ["Conversions", "Integer", "Purchases (all visitors)", "—"], ["Revenue_INR", "Decimal", "Web revenue (₹)", "All visitors, not just subscribers"],
+    ["Ad_Spend_INR", "Decimal", "Media spend", "Google Ads, Facebook, Instagram; Facebook/Instagram = Social_Ads_Daily spend"]] },
+  { table: "Dim_Date", rows: "762 rows", cols: [
+    ["Date", "Date", "PK, every day 2023-01-01 → 2025-01-31", "Covers every event date"], ["Year", "Integer", "—", "—"], ["Quarter", "Text", "Q1–Q4", "—"], ["Month_Num", "Integer", "—", "Sort Month_Name by this"], ["Month_Name", "Text", "Jan…Dec", "—"],
     ["Year_Month", "Text", "yyyy-mm", "Use on trend axes"], ["Week_Num", "Integer", "ISO week", "1–3 Jan can be week 52/53"], ["Day_Name", "Text", "—", "—"], ["Is_Weekend", "Yes/No", "Sat or Sun", "—"],
-    ["Fiscal_Year", "Text", "Apr–Mar", "—"], ["Festive_Season", "Yes/No", "Diwali window", "2023-11-12 and 2024-11-01 ± 10 days"]] },
+    ["Fiscal_Year", "Text", "Apr–Mar", "—"], ["Festive_Season", "Yes/No", "Diwali window", "2023-11-12 and 2024-11-01 ± days"], ["Is_Reporting_Period", "Yes/No", "2023–2024", "Filter = Yes for annual KPIs"]] },
 ];
 
 /* ---------------- SQL (for QA_SQL) ---------------- */
 const M_SQL_BLOCKS = [
   { title: "1 · Data Count Validation", desc: "Every table's row count must match the Dataset page before you build anything.",
-    sql: "SELECT 'Campaigns' t, COUNT(*) n FROM campaigns            -- 61\nUNION ALL SELECT 'Emails', COUNT(*) FROM emails              -- 471\nUNION ALL SELECT 'Activities', COUNT(*) FROM activities      -- 313,895\nUNION ALL SELECT 'Customers', COUNT(*) FROM customers        -- 12,000\nUNION ALL SELECT 'Orders', COUNT(*) FROM orders              -- 45,978\nUNION ALL SELECT 'Web_Engagement', COUNT(*) FROM web_engagement  -- 52,560\nUNION ALL SELECT 'Dim_Date', COUNT(*) FROM dim_date;         -- 731" },
-  { title: "2 · Referential integrity", desc: "Orphans break every campaign-level number. All four should return 0.",
-    sql: "SELECT COUNT(*) FROM emails e LEFT JOIN campaigns c ON c.campaign_id = e.campaign_id WHERE c.campaign_id IS NULL;      -- 0\nSELECT COUNT(*) FROM activities a LEFT JOIN emails e ON e.email_id = a.email_id WHERE e.email_id IS NULL;            -- 0\nSELECT COUNT(*) FROM activities a LEFT JOIN customers c ON c.customer_id = a.customer_id WHERE c.customer_id IS NULL; -- 0\nSELECT COUNT(*) FROM orders o LEFT JOIN emails e ON e.email_id = o.attributed_email_id\nWHERE o.attributed_email_id IS NOT NULL AND e.email_id IS NULL;                                                     -- 0" },
-  { title: "3 · Date logic", desc: "Activities can't happen before the send, and sends must fall inside the campaign window.",
-    sql: "SELECT COUNT(*) FROM activities a JOIN emails e ON e.email_id = a.email_id\nWHERE a.activity_date < e.email_sent_date;                       -- 0\n\nSELECT COUNT(*) FROM emails e JOIN campaigns c ON c.campaign_id = e.campaign_id\nWHERE e.email_sent_date < c.start_date\n   OR (c.end_date IS NOT NULL AND DATE(e.email_sent_date) > c.end_date);   -- 0\n\nSELECT COUNT(*) FROM activities WHERE activity_date >= '2025-01-01';     -- 36 (after Dim_Date ends)" },
-  { title: "4 · Recipients = Delivered + Bounced", desc: "The send log and the event log must agree.",
-    sql: "SELECT SUM(recipients) FROM emails;                                         -- 177,032\nSELECT SUM(activity_type IN ('Delivered','Bounced')) FROM activities;      -- 177,032\n\nSELECT e.email_id, e.recipients, COUNT(a.activity_id) AS events\nFROM emails e LEFT JOIN activities a\n  ON a.email_id = e.email_id AND a.activity_type IN ('Delivered','Bounced')\nGROUP BY e.email_id, e.recipients\nHAVING e.recipients <> COUNT(a.activity_id);                               -- 0 rows" },
+    sql: "SELECT 'Campaigns' t, COUNT(*) n FROM campaigns              -- 103\nUNION ALL SELECT 'Emails', COUNT(*) FROM emails                -- 471\nUNION ALL SELECT 'Activities', COUNT(*) FROM activities        -- 313,895\nUNION ALL SELECT 'WhatsApp_Messages', COUNT(*) FROM whatsapp_messages  -- 73,221\nUNION ALL SELECT 'Social_Ads_Daily', COUNT(*) FROM social_ads_daily    -- 41,736\nUNION ALL SELECT 'Customers', COUNT(*) FROM customers          -- 12,000\nUNION ALL SELECT 'Orders', COUNT(*) FROM orders                -- 47,604\nUNION ALL SELECT 'Web_Engagement', COUNT(*) FROM web_engagement  -- 70,080\nUNION ALL SELECT 'Dim_Date', COUNT(*) FROM dim_date;           -- 762" },
+  { title: "2 · Referential integrity (every FK)", desc: "Orphans break every campaign-level number. All of these return 0 on this dataset.",
+    sql: "SELECT COUNT(*) FROM emails e LEFT JOIN campaigns c ON c.campaign_id = e.campaign_id WHERE c.campaign_id IS NULL;                -- 0\nSELECT COUNT(*) FROM activities a LEFT JOIN emails e ON e.email_id = a.email_id WHERE e.email_id IS NULL;                      -- 0\nSELECT COUNT(*) FROM activities a LEFT JOIN customers c ON c.customer_id = a.customer_id WHERE c.customer_id IS NULL;           -- 0\nSELECT COUNT(*) FROM whatsapp_messages w LEFT JOIN campaigns c ON c.campaign_id = w.campaign_id AND c.channel = 'WhatsApp'\nWHERE c.campaign_id IS NULL;                                                                                                   -- 0\nSELECT COUNT(*) FROM whatsapp_messages w LEFT JOIN customers c ON c.customer_id = w.customer_id WHERE c.customer_id IS NULL;     -- 0\nSELECT COUNT(*) FROM social_ads_daily s LEFT JOIN campaigns c ON c.campaign_id = s.campaign_id AND c.channel = s.platform\nWHERE c.campaign_id IS NULL;                                                                                                   -- 0\nSELECT COUNT(*) FROM orders o LEFT JOIN campaigns c ON c.campaign_id = o.attributed_campaign_id\nWHERE o.attributed_campaign_id IS NOT NULL AND c.campaign_id IS NULL;                                                          -- 0\nSELECT COUNT(*) FROM orders o LEFT JOIN whatsapp_messages w ON w.message_id = o.attributed_message_id\nWHERE o.attributed_message_id IS NOT NULL AND w.message_id IS NULL;                                                            -- 0\n-- every event date exists in dim_date\nSELECT COUNT(*) FROM activities a LEFT JOIN dim_date d ON d.date = DATE(a.activity_date) WHERE d.date IS NULL;                 -- 0" },
+  { title: "3 · Date logic", desc: "Events can't happen before the send, and sends / ads must fall inside the campaign window.",
+    sql: "SELECT COUNT(*) FROM activities a JOIN emails e ON e.email_id = a.email_id\nWHERE a.activity_date < e.email_sent_date;                       -- 0\n\nSELECT COUNT(*) FROM emails e JOIN campaigns c ON c.campaign_id = e.campaign_id\nWHERE e.email_sent_date < c.start_date\n   OR (c.end_date IS NOT NULL AND DATE(e.email_sent_date) > c.end_date);   -- 0\n\nSELECT COUNT(*) FROM social_ads_daily s JOIN campaigns c ON c.campaign_id = s.campaign_id\nWHERE s.date NOT BETWEEN c.start_date AND c.end_date;                    -- 0\n\nSELECT COUNT(*) FROM whatsapp_messages\nWHERE read_time < delivered_time OR click_time < read_time;              -- 0" },
+  { title: "4 · Reconciliations across tables", desc: "Recipients = Delivered + Bounced; campaign spend = daily ad spend; ad spend matches the web table.",
+    sql: "SELECT SUM(recipients) FROM emails;                                         -- 177,032\nSELECT SUM(activity_type IN ('Delivered','Bounced')) FROM activities;      -- 177,032\n\n-- campaign spend vs daily ad rows (0 differences)\nSELECT c.campaign_id, c.actual_spend_inr, ROUND(SUM(s.spend_inr)) AS daily_total\nFROM campaigns c JOIN social_ads_daily s ON s.campaign_id = c.campaign_id\nGROUP BY c.campaign_id, c.actual_spend_inr\nHAVING ABS(c.actual_spend_inr - ROUND(SUM(s.spend_inr))) > 1;\n\n-- Meta spend vs web ad spend by day: only 2024-03-12 differs (web tracking outage)\nSELECT s.date, s.platform, ROUND(SUM(s.spend_inr)) meta, ROUND(COALESCE(w.sp, 0)) web\nFROM social_ads_daily s\nLEFT JOIN (SELECT date, traffic_source, SUM(ad_spend_inr) sp FROM web_engagement GROUP BY 1, 2) w\n       ON w.date = s.date AND w.traffic_source = s.platform\nGROUP BY s.date, s.platform, w.sp HAVING ABS(meta - web) > 2;" },
   { title: "5 · List hygiene: sends after unsubscribe and repeat hard bounces", desc: "Real compliance issues hidden in the data. Report them, don't delete them.",
-    sql: "-- emails delivered to a customer AFTER they unsubscribed\nSELECT COUNT(*) FROM activities a JOIN customers c ON c.customer_id = a.customer_id\nWHERE a.activity_type = 'Delivered' AND c.unsubscribe_date IS NOT NULL\n  AND a.activity_date > c.unsubscribe_date;                         -- 104\n\n-- customers who hard-bounced more than once (address not suppressed)\nSELECT COUNT(*) FROM (\n  SELECT customer_id FROM activities WHERE bounce_type = 'Hard'\n  GROUP BY customer_id HAVING COUNT(*) > 1) x;                      -- 33 (of 145 hard-bounced customers)" },
+    sql: "-- emails delivered to a customer AFTER they unsubscribed\nSELECT COUNT(*) FROM activities a JOIN customers c ON c.customer_id = a.customer_id\nWHERE a.activity_type = 'Delivered' AND c.unsubscribe_date IS NOT NULL\n  AND a.activity_date > c.unsubscribe_date;                         -- 104\n\n-- customers who hard-bounced more than once (address not suppressed)\nSELECT COUNT(*) FROM (\n  SELECT customer_id FROM activities WHERE bounce_type = 'Hard'\n  GROUP BY customer_id HAVING COUNT(*) > 1) x;                      -- 33 (of 145 hard-bounced customers)\n\n-- WhatsApp sent only after consent\nSELECT COUNT(*) FROM whatsapp_messages w JOIN customers c ON c.customer_id = w.customer_id\nWHERE w.sent_time < c.whatsapp_opt_in_date;                         -- 0" },
 ];
 
 /* ---------------- PROBLEM ---------------- */
 const M_PROBLEM_STATEMENT = [
   { icon: "1", h: "Engagement numbers nobody trusts", p: `The team reports a ${A.total_open_rate}% open rate because it counts every Open row. Repeat opens and Apple Mail's automatic opens hide a real (human) open rate of about ${Math.round(A.human_open_rate)}%.` },
-  { icon: "2", h: "Spend without measured return", p: `₹${(A.spend / 1e5).toFixed(1)} lakh went into 61 campaigns, but no one tracks revenue per campaign. ${A.neg_roi_campaigns} campaigns earn less than they cost.` },
-  { icon: "3", h: "Web metrics added up the wrong way", p: "Unique visitors are summed across days, bounce rates are averaged across rows and traffic sources are counted by rows, so every source looks equally important." },
-  { icon: "4", h: "List hygiene and compliance gaps", p: `${A.sends_after_unsub} emails went to people after they unsubscribed and ${A.repeat_hard_bounce_customers} hard-bounced addresses were mailed again: a deliverability and legal risk.` },
-  { icon: "5", h: "No single view of the funnel", p: "Campaigns, sends, email events, orders and website traffic sit in separate exports, so nobody can follow a campaign from send to revenue." },
+  { icon: "2", h: "Spend without measured return", p: `${inrCr(A.total_campaign_spend || 0)} went into ${A.campaigns_all || 103} campaigns across Email, Facebook, Instagram and WhatsApp, but no one compares ROI by channel. ${A.neg_roi_campaigns} email campaigns and ${A.soc_campaigns_below_1 || 0} social campaigns earn less than they cost.` },
+  { icon: "3", h: "Social judged on likes", p: `Instagram gets the most likes and saves, so it looks like the star channel. After spend and product cost it loses money (ROAS ${A.social_platform ? A.social_platform.Instagram.roas : 0}).` },
+  { icon: "4", h: "Web metrics added up the wrong way", p: "Unique visitors are summed across days, bounce rates are averaged across rows and traffic sources are counted by rows, so every source looks equally important." },
+  { icon: "5", h: "List hygiene and compliance gaps", p: `${A.sends_after_unsub} emails went to people after they unsubscribed and ${A.repeat_hard_bounce_customers} hard-bounced addresses were mailed again: a deliverability and legal risk.` },
+  { icon: "6", h: "No single view of the funnel", p: "Campaign plans, email events, WhatsApp messages, Meta ad reports, orders and website traffic sit in separate exports, so nobody can follow a campaign from spend to revenue." },
 ];
 
 /* ---------------- TOOLS / DOMAIN ---------------- */
 const M_TOOLS = [
   { logo: "assets/excel-logo.jpg", name: "Excel", role: "Stage 1 · KPIs in Excel", desc: "Open the workbook, understand the 3 email tables and the web table, and build the 15 KPI-document KPIs with formulas and pivots. The starter shows where the document's formulas go wrong." },
-  { logo: "assets/mysql-logo.png", name: "SQL (MySQL)", role: "Stage 2 · Load it into a database", desc: "Load all 7 tables into MySQL, validate them, and build the vw_email_performance and vw_campaign_roi views that both BI tools read." },
+  { logo: "assets/mysql-logo.png", name: "SQL (MySQL)", role: "Stage 2 · Load it into a database", desc: "Load all 9 tables into MySQL, validate them, and build the vw_email_performance and vw_campaign_roi views that both BI tools read." },
   { logo: "assets/tableau-logo.jpg", name: "Tableau", role: "Stage 3 · Tableau–SQL", desc: "Connect Tableau to MySQL (not to the Excel file) and build the Email and Web dashboards." },
   { logo: "assets/powerbi-logo.png", name: "Power BI", role: "Stage 4 · Power BI–SQL", desc: "Connect Power BI to the same MySQL source, model the star schema around Dim_Date, and write the DAX measures from the KPI Library." },
   { logo: "assets/sia-avatar.png", name: "AI / Insights", role: "Optional · Ask the data a question", desc: "A Q&A visual or Copilot on top of the same model, so a manager can type 'which campaign type has the best ROI?' and get the governed answer." },
@@ -250,7 +309,7 @@ const M_DOMAIN_WHERE = [
   "CRM and lifecycle marketing — welcome series, re-engagement and churn, list health and deliverability.",
   "Growth and product teams — website funnels, device experience, conversion-rate optimisation and A/B tests.",
 ];
-const M_DOMAIN_DATA_TYPES = ["Campaign plans & budgets", "Email sends", "Email events (open, click, bounce)", "Unsubscribes & spam complaints", "Subscriber profiles", "Orders & attribution", "Website sessions", "Traffic source & device", "Ad spend", "Calendar & festive seasons"];
+const M_DOMAIN_DATA_TYPES = ["Campaign plans & budgets", "Email sends & events", "WhatsApp messages (sent, read, clicked)", "Facebook & Instagram ad reports", "Likes, comments, shares, saves", "Unsubscribes, opt-outs & spam complaints", "Subscriber profiles & consent", "Orders, coupons & attribution", "Website sessions by source & device", "Ad spend", "Calendar & festive seasons"];
 const M_FLOW = [
   { t: "Data Preparation", d: "Open Marketing Data (Excel). Understand Campaigns → Emails → Activities and the web table; build the KPI-document KPIs in Excel." },
   { t: "SQL Integration", d: "Load the 7 tables into MySQL with keys; run the count, integrity and date checks; build vw_email_performance and vw_campaign_roi." },
@@ -296,16 +355,16 @@ const M_SOFTWARE_LINKS = [
   { name: "Power BI Desktop — free download", desc: "Official installer from Microsoft", icon: "⚡", type: "link", href: "https://www.microsoft.com/en-us/download/details.aspx?id=58494" },
 ];
 const M_DOCUMENTS = [
-  { name: "Excel Starter Template.xlsx", desc: "Email_Summary (one row per email), Campaign_Summary and the full Web_Engagement table, with a Dashboard tab of live formulas for every KPI, the KPI document's versions marked ✗ next to the corrected ones, and breakdowns by campaign type, source and device", icon: "🧮", type: "download", href: "assets/docs/AXon_Marketing_Excel_Starter.xlsx", filename: "AXon_Marketing_Excel_Starter.xlsx" },
+  { name: "Excel Starter Template.xlsx", desc: "Email_Summary (one row per email), Campaign_Summary, Social_Summary (Facebook/Instagram), WhatsApp_Summary and the full Web_Engagement table, with a Dashboard tab of live formulas for every KPI (email, social, WhatsApp, web), the KPI document's versions marked ✗ next to the corrected ones, and breakdowns by campaign type, source, device and platform", icon: "🧮", type: "download", href: "assets/docs/AXon_Marketing_Excel_Starter.xlsx", filename: "AXon_Marketing_Excel_Starter.xlsx" },
 ];
 
 /* ---------------- INTERVIEW ---------------- */
-const M_QA_CATS = ["Explain This Project", "SQL", "Power BI & DAX", "Tableau", "Data Modeling", "Marketing Analytics Domain", "Email Marketing", "Scenario-Based", "General & HR", "Rapid Fire"];
+const M_QA_CATS = ["Explain This Project", "SQL", "Power BI & DAX", "Tableau", "Data Modeling", "Marketing Analytics Domain", "Email Marketing", "Social Media & WhatsApp", "Scenario-Based", "General & HR", "Rapid Fire"];
 const M_QA = [
   // Explain This Project
   { cat: "Explain This Project", q: "Explain this project to me — what did you actually build?", a: `Tell it as a story: (1) the data — AXon Retail's marketing data for 2023–2024: 61 campaigns, 471 email sends, ${fmtN(A.activities)} email events, 12,000 subscribers, ${fmtN(A.orders)} orders and ${fmtN(A.web_rows)} rows of daily web traffic; (2) the tools — Excel for first KPIs, MySQL for validation and views, Tableau and Power BI for an Email Campaign and a Web Engagement dashboard; (3) the challenge — the KPI document's formulas counted repeat opens, summed unique visitors and averaged rates, so I corrected them and showed both; (4) the outcome — a ${A.human_open_rate}% human open rate instead of the ${A.total_open_rate}% everyone was quoting, and an ROI view showing Cart Abandonment and Loyalty pay back while Re-engagement and Promotional lose money.`, signal: "Almost always the first question — tests structure and communication." },
   { cat: "Explain This Project", q: "What was the business problem?", a: "AXon's marketing team ran dozens of email campaigns and tracked website traffic in separate exports. Engagement was over-reported (repeat and machine opens), spend wasn't tied to revenue, and web KPIs were aggregated the wrong way. They needed one trusted view from send to revenue, and a way to compare campaigns and channels fairly.", signal: "Tests whether you understood the 'why', not just the tools." },
-  { cat: "Explain This Project", q: "What data did you use?", a: `Seven tables: Campaigns (61), Emails (471), Activities (${fmtN(A.activities)} recipient-level events), Customers (12,000), Orders (${fmtN(A.orders)}), Web_Engagement (${fmtN(A.web_rows)} rows at date × source × device × region) and Dim_Date (731 days). Campaign_ID links Campaigns to Emails; Email_ID links Emails to Activities and to the attributed orders.`, signal: "Name exact scale and keys." },
+  { cat: "Explain This Project", q: "What data did you use?", a: `Nine tables: Campaigns (103 across Email, Facebook, Instagram, WhatsApp), Emails (471), Activities (${fmtN(A.activities)} recipient-level events), Customers (12,000), Orders (${fmtN(A.orders)}), Web_Engagement (${fmtN(A.web_rows)} rows at date × source × device × region) plus Social_Ads_Daily (41,736 rows of Facebook/Instagram ad results), WhatsApp_Messages (73,221 messages) and Dim_Date (762 days). Campaign_ID links Campaigns to Emails; Email_ID links Emails to Activities and to the attributed orders.`, signal: "Name exact scale and keys." },
   { cat: "Explain This Project", q: "What was your most important insight?", a: `Three things. The real open rate is about ${Math.round(A.human_open_rate)}%, not ${Math.round(A.total_open_rate)}%: ${f1(A.machine_open_share)}% of opens are Apple Mail machine opens and many more are repeats. Second, ROI varies hugely by campaign type: Cart Abandonment returns ${MD.type_roi ? MD.type_roi[0][1] : 1786}% and Loyalty ${MD.type_roi ? MD.type_roi[1][1] : 641}%, while Promotional (${TT.Promotional ? Math.round(TT.Promotional.roi) : -9}%) and Re-engagement (${TT["Re-engagement"] ? Math.round(TT["Re-engagement"].roi) : -49}%) lose money. Third, unsubscribes rose from ${A.year_email ? A.year_email["2023"].unsub : 0.192}% to ${A.year_email ? A.year_email["2024"].unsub : 0.323}% as send volume grew ${A.year_email ? f1((A.year_email["2024"].sent / A.year_email["2023"].sent - 1) * 100) : 34}%.`, signal: "Tests a quantified 'so what'." },
   { cat: "Explain This Project", q: "What would you do differently with more time?", a: "Move from last-click attribution to a holdout test (send a campaign to 90% of the segment, hold back 10%) to measure true incremental revenue, and connect web sessions to customers (UTM + login) so the web and email views join at customer level.", signal: "Shows you know the limits of your own analysis." },
   // SQL
@@ -331,7 +390,7 @@ const M_QA = [
   { cat: "Data Modeling", q: "Can you join Web_Engagement to Customers or Campaigns?", a: "No. Web_Engagement is aggregated traffic for all visitors with no customer or campaign key. It shares only Dim_Date (and Region as an attribute). Email traffic to the site is visible as Traffic_Source = Email, not per campaign.", signal: "Knowing what you can't join." },
   { cat: "Data Modeling", q: "Why build vw_email_performance?", a: "It aggregates 314K events to one row per email (delivered, bounced, unique opens, human opens, unique clicks, unsubs). Every email KPI becomes a simple SUM ratio, both BI tools read the same logic, and QA is one query.", signal: "Mart/view design." },
   // Domain
-  { cat: "Marketing Analytics Domain", q: "What is ROAS and how is it different from ROI?", a: `ROAS = revenue ÷ spend (here ${A.roas}). ROI = (revenue − spend) ÷ spend (here ${A.roi}%). ROAS 2.07 means ₹2.07 back per ₹1; ROI 106.9% means you more than doubled the money. Neither includes product cost, so a profit-based ROI would be lower.`, signal: "Core marketing finance." },
+  { cat: "Marketing Analytics Domain", q: "What is ROAS and how is it different from ROI?", a: `ROAS = revenue ÷ spend (here ${A.roas}). ROI = (revenue − spend) ÷ spend (here ${A.roi}%). ROAS ${A.roas} means ₹${A.roas} back per ₹1; ROI ${A.roi}% means you more than doubled the money. Neither includes product cost, so a profit-based ROI would be lower.`, signal: "Core marketing finance." },
   { cat: "Marketing Analytics Domain", q: "What is attribution, and what model does this dataset use?", a: "Attribution decides which touchpoint gets credit for a sale. Here: last click — an order is credited to the last email the customer clicked within 72 hours before ordering. It's simple but over-credits the final touch and ignores people who would have bought anyway.", signal: "Attribution basics." },
   { cat: "Marketing Analytics Domain", q: "What is incrementality and how would you measure it?", a: "The revenue that happened only because of the campaign. Measure it with a holdout: randomly keep 10% of the target segment out, then compare conversion between mailed and held-out groups.", signal: "Senior-level thinking." },
   { cat: "Marketing Analytics Domain", q: "What is CAC and LTV?", a: "Customer Acquisition Cost = marketing spend ÷ new customers acquired. Lifetime Value = revenue (or margin) a customer brings over their life. A healthy business keeps LTV well above CAC (often 3:1).", signal: "Standard vocabulary." },
@@ -354,6 +413,15 @@ const M_QA = [
   { cat: "Rapid Fire", q: "Email ROI and ROAS?", a: `${A.roi}% and ${A.roas}.`, signal: "Number recall." },
   { cat: "Rapid Fire", q: "Best and worst campaign type by ROI?", a: "Cart Abandonment best, Re-engagement worst.", signal: "Number recall." },
   { cat: "Rapid Fire", q: "Weighted bounce rate?", a: `${A.bounce_weighted}% (not the ${A.bounce_avg}% simple average).`, signal: "Number recall." },
+  // Social & WhatsApp
+  { cat: "Social Media & WhatsApp", q: "Facebook vs Instagram: which platform performs better here?", a: `Depends on the metric. Instagram wins engagement (${A.social_platform ? A.social_platform.Instagram.er : 0}% vs ${A.social_platform ? A.social_platform.Facebook.er : 0}%), Facebook wins everything that touches money: CTR ${A.social_platform ? A.social_platform.Facebook.ctr : 0}% vs ${A.social_platform ? A.social_platform.Instagram.ctr : 0}%, CPC ₹${A.social_platform ? A.social_platform.Facebook.cpc : 0} vs ₹${A.social_platform ? A.social_platform.Instagram.cpc : 0}, ROAS ${A.social_platform ? A.social_platform.Facebook.roas : 0} vs ${A.social_platform ? A.social_platform.Instagram.roas : 0}. After product cost Instagram's ad profit is negative. I'd keep Instagram for reach and launches but judge it on profit, not likes.`, signal: "Tests metric choice." },
+  { cat: "Social Media & WhatsApp", q: "Why is retargeting ROAS so much higher than prospecting?", a: `Retargeting shows ads to people who already visited or added to cart, so many would have bought anyway. Here retargeting ROAS is ${MD.soc_type_roas ? MD.soc_type_roas[0][1] : 7.4} vs ${MD.soc_type_roas ? (MD.soc_type_roas.find(x => x[0] === "Acquisition") || [0, 1.6])[1] : 1.6} for acquisition. Part of that is real, part is attribution taking credit for intent. Use a holdout or conversion-lift test before shifting all budget to retargeting, or the audience pool will shrink.`, signal: "Incrementality awareness." },
+  { cat: "Social Media & WhatsApp", q: "What is the difference between impressions, reach and frequency?", a: "Impressions = times the ad was shown. Reach = unique people who saw it. Frequency = impressions ÷ reach. Reach is de-duplicated per row in an export, so you can't sum it across days or cities.", signal: "Vocabulary + aggregation trap." },
+  { cat: "Social Media & WhatsApp", q: "Can you add Meta's purchase value to your orders revenue?", a: "No. Meta reports click-through and view-through purchases with its own attribution window; the Orders table credits Email/WhatsApp clicks within 72 hours. They overlap and use different rules. Show each channel's ROAS with its source label and compare trends, not totals.", signal: "Multi-source attribution." },
+  { cat: "Social Media & WhatsApp", q: "How do you calculate the WhatsApp delivery rate from this table?", a: `Message_Status is the final status. Delivered = 'Delivered' + 'Read' rows (${fmtN(A.wa ? A.wa.delivered : 0)}), so the delivery rate is ${A.wa ? A.wa.delivery_rate : 0}%. Counting only 'Delivered' gives ${A.wa ? A.wa.wrong_delivery_rate : 0}%, which is wrong.`, signal: "Status-field logic." },
+  { cat: "Social Media & WhatsApp", q: "Why is WhatsApp ROI so high, and would it scale?", a: `WhatsApp goes only to opted-in, mostly loyal customers, costs about ₹${A.wa ? A.wa.cost_per_delivered : 0.76} per delivered message and gets a ${A.wa ? A.wa.read_rate : 71}% read rate, so ROI is ${A.wa ? A.wa.roi : 0}%. It won't scale linearly: the opted-in base is limited (${fmtN(A.wa ? A.wa.opted_in : 0)} customers), opt-outs rise with frequency and Meta caps marketing messages per user.`, signal: "Thinks about scale and saturation." },
+  { cat: "Social Media & WhatsApp", q: "Which ad format would you recommend?", a: `For clicks, Collection (${MD.soc_format_ctr ? MD.soc_format_ctr[0][1] : 1.7}% CTR) and Image on Facebook. For engagement, Reels and Stories (~${MD.soc_format_er ? MD.soc_format_er[0][1] : 3}% engagement). Pick by objective: conversion campaigns on catalogue/collection formats, awareness on Reels.`, signal: "Objective-driven recommendation." },
+  { cat: "Social Media & WhatsApp", q: "How would you reconcile Meta Ads Manager with your web analytics?", a: "Spend should match exactly (here it does by date × platform × device × region, except the 2024-03-12 outage). Clicks will be higher than sessions (not every click loads the page). Purchases will differ because of view-through and attribution windows. Reconcile spend first, then explain the rest.", signal: "Reconciliation discipline." },
 ];
 const M_GLOSSARY = [
   { t: "Delivery Rate", d: "Delivered ÷ sent. The share of emails that reached an inbox." },
@@ -382,13 +450,28 @@ const M_GLOSSARY = [
   { t: "Weighted average", d: "An average where each row counts in proportion to its size (e.g. sessions)." },
   { t: "ALL()", d: "DAX function that removes filters: used for percent-of-total measures." },
   { t: "COUNT DISTINCT", d: "Counts unique values (or pairs) instead of rows." },
+  { t: "Impressions", d: "Number of times an ad was shown." },
+  { t: "Reach", d: "Unique people who saw an ad. Not additive across rows." },
+  { t: "Frequency", d: "Impressions ÷ reach: how often the same person saw the ad." },
+  { t: "CPM", d: "Cost per 1,000 impressions." },
+  { t: "CPC", d: "Cost per link click." },
+  { t: "CPA", d: "Cost per acquisition (purchase)." },
+  { t: "Engagement rate (social)", d: "(Likes + comments + shares + saves) ÷ impressions." },
+  { t: "View-through conversion", d: "A purchase after someone saw (not clicked) an ad; counted by Meta, not by last-click models." },
+  { t: "Retargeting", d: "Ads shown to people who already visited, engaged or added to cart." },
+  { t: "Lookalike audience", d: "Meta audience of people similar to your buyers." },
+  { t: "WhatsApp template", d: "A pre-approved message format required for marketing messages." },
+  { t: "Read rate", d: "Read ÷ delivered (blue ticks)." },
+  { t: "Opt-in / opt-out", d: "Consent to receive messages / withdrawal of it (STOP)." },
+  { t: "UTM parameters", d: "Tags on links (utm_source, utm_campaign) that tell web analytics where a visit came from." },
+  { t: "Gross margin", d: "(Revenue − product cost) ÷ revenue." },
 ];
 const M_TIPS = [
   { n: "01", h: "Tell the project as a story, not a feature list", p: "Data & scale → tools → the challenge you hit → the business outcome. Interviewers remember stories, not tool lists." },
   { n: "02", h: "Always use real numbers", p: `"Large email dataset" says nothing. "${fmtN(A.activities)} email events, ${A.human_open_rate}% human open rate, ${A.roi}% email ROI" says everything.` },
   { n: "03", h: "Know where the document was wrong", p: "Being able to say 'the brief said X, it gave 369.5, so I changed it to Y' is the most convincing proof you did the work yourself." },
   { n: "04", h: "Lead every KPI with its business question", p: "'Of the people who opened, how many clicked?' beats 'CTOR is a ratio'." },
-  { n: "05", h: "Have one honest challenge story", p: "Machine opens, summed visitors or the 16.7%-per-source chart are all real, specific stories from this data." },
+  { n: "05", h: "Have one honest challenge story", p: "Machine opens, summed visitors or the 12.5%-per-source chart are all real, specific stories from this data." },
   { n: "06", h: "Contribute across every tool", p: "This capstone is graded on Excel, SQL, Tableau, Power BI and QA together." },
   { n: "07", h: "Practise explaining to a non-technical CMO", p: "No jargon: 'one in three people actually opened our emails'." },
   { n: "08", h: "Structure scenario answers the same way", p: "Clarify → diagnose with data → quantify → recommend one next step." },
@@ -400,6 +483,7 @@ const M_RESUME_BULLETS = [
   `Linked campaign spend to last-click attributed revenue, showing ${A.roi}% overall email ROI and ${A.neg_roi_campaigns} loss-making campaigns, led by Re-engagement and Promotional types.`,
   "Replaced row-count and simple-average web KPIs with session-weighted measures (bounce, duration, source share) in SQL and DAX.",
   `Flagged ${A.sends_after_unsub} post-unsubscribe sends and ${A.repeat_hard_bounce_customers} repeat hard-bounce addresses as compliance and deliverability risks.`,
+  `Added Facebook, Instagram and WhatsApp to the model: Facebook ROAS ${A.social_platform ? A.social_platform.Facebook.roas : ""} vs Instagram ${A.social_platform ? A.social_platform.Instagram.roas : ""}, WhatsApp ROI ${A.wa ? A.wa.roi : ""}% on ${fmtN(A.wa ? A.wa.sent : 0)} messages; reconciled Meta spend to web ad spend by day.`,
 ];
 const M_PROJECT_FAQ = [
   { q: "What if the interviewer isn't technical?", a: "Lead with the business framing (the team didn't know which campaigns made money) and the outcome (real open rate, ROI by campaign type), and go into SQL/DAX only when asked." },
@@ -418,6 +502,8 @@ const M_LEARNING_LINKS = [
   { title: "Power BI Learning Paths (Microsoft Learn)", desc: "Modelling, DAX and report building with hands-on labs.", url: "https://learn.microsoft.com/en-us/training/powerplatform/power-bi", source: "Microsoft" },
   { title: "Star Schema Design Guidance", desc: "Why every fact table here relates to Dim_Date.", url: "https://learn.microsoft.com/en-us/power-bi/guidance/star-schema", source: "Microsoft" },
   { title: "MySQL Official Documentation", desc: "LOAD DATA, window functions and date functions.", url: "https://dev.mysql.com/doc/", source: "MySQL" },
+  { title: "Meta Ads: about ad reporting & metrics", desc: "How Meta defines reach, impressions, results and attribution settings.", url: "https://www.facebook.com/business/measurement", source: "Meta" },
+  { title: "WhatsApp Business Platform pricing", desc: "How marketing conversations are charged per message/conversation.", url: "https://developers.facebook.com/docs/whatsapp/pricing", source: "Meta for Developers" },
 ];
 const M_WEAK_STRONG = [
   { q: "What is the open rate of your campaigns?",
@@ -429,6 +515,9 @@ const M_WEAK_STRONG = [
   { q: "How did you calculate average bounce rate?",
     weak: "I took the average of the Bounce Rate column.",
     strong: `A plain AVERAGE gives ${A.bounce_avg}%, but rows have very different session counts. I used SUM(Bounced_Sessions) ÷ SUM(Sessions) = ${A.bounce_weighted}%, which is what a web analytics tool would report.` },
+  { q: "Which social platform should get more budget?",
+    weak: "Instagram, because it gets the most likes and engagement.",
+    strong: `Instagram has the higher engagement rate (${A.social_platform ? A.social_platform.Instagram.er : 0}% vs ${A.social_platform ? A.social_platform.Facebook.er : 0}%), but Facebook returns ${A.social_platform ? A.social_platform.Facebook.roas : 0}× its spend vs ${A.social_platform ? A.social_platform.Instagram.roas : 0}× and Instagram's ad profit is negative after product cost. I'd shift conversion budget to Facebook retargeting and keep Instagram for launches and reach, then confirm with a lift test.` },
 ];
 /* ============================================================
    AXon Marketing Analytics — site content built on M_ constants.
@@ -460,6 +549,29 @@ const KPI_Q = {
   "ROAS": "How much revenue comes back for every rupee spent?",
   "Unsubscribe Rate": "How many recipients ask us to stop emailing?",
   "Website Conversion Rate": "What share of visits end in a purchase?",
+  "Ad Spend (Facebook + Instagram)": "How much are we spending on Meta ads?",
+  "Impressions": "How many times were our ads shown?",
+  "Reach": "How many different people saw our ads?",
+  "Link CTR": "What share of ad views turn into a click to the site?",
+  "CPC (Cost per Click)": "What does one visit from an ad cost?",
+  "CPM (Cost per 1,000 Impressions)": "What does it cost to be seen 1,000 times?",
+  "Engagement Rate (Social)": "How much do people interact with our ads?",
+  "Social Conversion Rate": "What share of ad clicks end in a purchase?",
+  "Cost per Purchase (CPA)": "What do we pay for one sale from ads?",
+  "Social ROAS (platform-reported)": "How much revenue does Meta say each rupee of ads brings back?",
+  "Ad Profit & Profit %": "Do our ads make money after product cost?",
+  "WhatsApp Messages Sent": "How many WhatsApp messages did we send?",
+  "WhatsApp Delivery Rate": "How many WhatsApp messages reached the phone?",
+  "WhatsApp Read Rate": "How many delivered messages were read?",
+  "WhatsApp Click Rate": "How many recipients tapped the button?",
+  "WhatsApp Reply Rate": "How many customers replied?",
+  "WhatsApp Opt-out Rate": "How many people asked us to stop?",
+  "Cost per Delivered Message": "What does one delivered WhatsApp message cost?",
+  "WhatsApp ROI %": "Does WhatsApp earn more than it costs?",
+  "Spend by Channel": "Where does the marketing money go?",
+  "ROAS by Channel": "Which channel returns the most per rupee?",
+  "Gross Margin %": "How much of each rupee of sales is left after product cost?",
+  "Total Marketing Spend": "What do we spend on marketing in total?",
 };
 const docVsTrue = (doc, tru) => `${tru}  (KPI-doc formula: ${doc})`;
 const KPI_V = {
@@ -474,7 +586,7 @@ const KPI_V = {
   "Total Unique Visitors": fmtN(A.uv_sum) + " visitor-days (summed: not distinct people)",
   "Avg Bounce Rate": A.bounce_weighted + "% (session-weighted)",
   "Avg Session Duration": f2(A.dur_weighted) + " min (session-weighted)",
-  "Traffic Source Breakdown": `${SRCP("Organic Search")[1]}% Organic Search · ${SRCP("Paid Ads")[1]}% Paid Ads (by sessions)`,
+  "Traffic Source Breakdown": `${SRCP("Organic Search")[1]}% Organic Search · ${SRCP("Google Ads")[1]}% Google Ads (by sessions)`,
   "Device Usage Share": `${MD.device_pct ? MD.device_pct[0][1] : 64}% Mobile · ${MD.device_pct ? MD.device_pct[1][1] : 30}% Desktop (by sessions)`,
   "Top Regions by Unique Visitors": `${MD.region_uv_m ? MD.region_uv_m[0][1] : 4.3}M West, then North, South, East`,
   "Engagement by Date": `${A.web_peak_month ? fmtN(A.web_peak_month[1]) : ""} sessions in the peak month (2024-10)`,
@@ -486,8 +598,19 @@ const KPI_V = {
   "Email Conversion Rate": A.conv_rate + "%", "Revenue per Email Sent": "₹" + f2(A.rev_per_email_sent),
   "Net Revenue (Delivered)": inr(A.net_rev_delivered) + " (" + inrCr(A.net_rev_delivered) + ")", "Average Order Value": inr(A.aov), "Return Rate": A.return_rate + "%",
   "Sessions": fmtN(A.sessions), "Website Conversion Rate": A.web_cvr + "%", "Pages per Session": f2(A.pages_per_session),
-  "Paid ROAS (Web)": `${MD.roas_paid ? MD.roas_paid[0][1] : 2.42} Paid Ads · ${MD.roas_paid ? MD.roas_paid[1][1] : 2.21} Social Media`,
+  "Paid ROAS (Web)": (MD.roas_paid || []).map(x => x[0] + " " + x[1]).join(" · "),
   "Sessions YoY %": "+" + A.sessions_yoy + "%",
+  ...(() => { const S = A.social || {}, P = A.social_platform || { Facebook: {}, Instagram: {} }, W = A.wa || {}, C = A.channels || {}; return {
+    "Ad Spend (Facebook + Instagram)": inr(S.spend) + ` (FB ${inrL(P.Facebook.spend)} · IG ${inrL(P.Instagram.spend)})`,
+    "Impressions": fmtN(S.impressions), "Reach": fmtN(S.reach) + " (summed rows: upper bound)",
+    "Link CTR": S.ctr + `% (FB ${P.Facebook.ctr}% · IG ${P.Instagram.ctr}%)`, "CPC (Cost per Click)": "₹" + f2(S.cpc) + ` (FB ₹${f2(P.Facebook.cpc)} · IG ₹${f2(P.Instagram.cpc)})`,
+    "CPM (Cost per 1,000 Impressions)": "₹" + f2(S.cpm), "Engagement Rate (Social)": S.er + `% (FB ${P.Facebook.er}% · IG ${P.Instagram.er}%)`,
+    "Social Conversion Rate": S.cvr + "%", "Cost per Purchase (CPA)": inr(S.cpa), "Social ROAS (platform-reported)": S.roas + ` (FB ${P.Facebook.roas} · IG ${P.Instagram.roas})`,
+    "Ad Profit & Profit %": inr(S.profit) + ` · ${S.profit_pct}% (FB ${inrL(P.Facebook.profit)} · IG ${inrL(P.Instagram.profit)})`,
+    "WhatsApp Messages Sent": fmtN(W.sent), "WhatsApp Delivery Rate": W.delivery_rate + "%", "WhatsApp Read Rate": W.read_rate + "%", "WhatsApp Click Rate": W.click_rate + "%",
+    "WhatsApp Reply Rate": W.reply_rate + "%", "WhatsApp Opt-out Rate": W.optout_rate + "%", "Cost per Delivered Message": "₹" + f2(W.cost_per_delivered), "WhatsApp ROI %": W.roi + "%",
+    "Spend by Channel": Object.keys(C).map(k => k + " " + inrL(C[k].spend)).join(" · "), "ROAS by Channel": Object.keys(C).map(k => k + " " + C[k].roas).join(" · "),
+    "Gross Margin %": A.gross_margin_pct + "%", "Total Marketing Spend": inr((A.total_campaign_spend || 0) + (A.google_ads_spend || 0)) + " (incl. Google Ads " + inrCr(A.google_ads_spend || 0) + ")" }; })(),
 };
 const KPI_WRONG = {
   "Delivery Rate": `${A.doc_delivery} with the KPI document's formula (delivered activities ÷ unique emails): that's recipients per email, not a rate`,
@@ -498,7 +621,7 @@ const KPI_WRONG = {
   "Total Unique Visitors": "Summing daily Unique_Visitors double-counts repeat visitors: it is not a count of people",
   "Avg Bounce Rate": `${A.bounce_avg}% with AVERAGE(Bounce_Rate_Pct): every row weighted equally`,
   "Avg Session Duration": `${A.dur_avg} min with a plain AVERAGE of the rows`,
-  "Traffic Source Breakdown": "16.7% for every source if you count rows (the document's 'count of rows')",
+  "Traffic Source Breakdown": "12.5% for every source if you count rows (the document's 'count of rows')",
   "Device Usage Share": "33.3% for every device if you count rows",
   "Top Regions by Unique Visitors": "'Top 5' — there are only 4 regions in this data",
   "Engagement by Date": "A gap on 2024-03-12 (tracking outage): don't draw it as zero traffic",
@@ -506,35 +629,45 @@ const KPI_WRONG = {
   "Attributed Revenue": `${inr(A.attr_rev_all_status)} if Returned and Cancelled orders are included`,
   "Email ROI %": `${f1((A.attr_rev_all_status - A.spend) / A.spend * 100)}% if Returned/Cancelled orders count as revenue; worse if Budget is used instead of Actual_Spend`,
   "Net Revenue (Delivered)": `${inr(A.net_rev_all)} if all order statuses are summed`,
+  "Reach": "SUM over rows double-counts people seen on several days / cities",
+  "Engagement Rate (Social)": `${A.soc_rows_er_avg}% if you AVERAGE each row's rate; ${A.social ? A.social.er_reach : ""}% if you divide by summed Reach`,
+  "Social ROAS (platform-reported)": "Inflated if added to Orders revenue: Meta also counts view-through purchases",
+  "WhatsApp Delivery Rate": `${A.wa ? A.wa.wrong_delivery_rate : ""}% if you count only Message_Status = 'Delivered' (Read messages were delivered too)`,
+  "WhatsApp Read Rate": "Lower if divided by Sent instead of Delivered",
+  "Cost per Delivered Message": "Higher if failed messages are counted (they're free)",
+  "ROAS by Channel": "Misleading if Meta's platform numbers and Orders attribution are ranked as one scale",
+  "Ad Profit & Profit %": "Looks like ROAS profit if you forget product cost: revenue − spend is not profit",
 };
 const KPI_TIER = {
   "Delivery Rate": "P1", "Open Rate (Unique)": "P1", "Click-Through Rate (Unique CTR)": "P1", "Campaign Engagement Rate": "P1", "Top Performing Campaigns": "P1",
   "Avg Activity per Email": "P1", "Activity Breakdown by Type": "P1", "Email Sent vs Activity Timeline": "P1",
   "Total Unique Visitors": "P1", "Avg Bounce Rate": "P1", "Avg Session Duration": "P1", "Traffic Source Breakdown": "P1", "Device Usage Share": "P1", "Top Regions by Unique Visitors": "P1", "Engagement by Date": "P1",
   "Emails Sent": "P2", "Delivered": "P2", "Bounce Rate": "P2", "Human Open Rate": "P2", "Click-to-Open Rate (CTOR)": "P2", "Unsubscribe Rate": "P2", "Campaign Spend": "P2", "Attributed Revenue": "P2", "Email ROI %": "P2", "ROAS": "P2", "Sessions": "P2", "Website Conversion Rate": "P2",
+  "Ad Spend (Facebook + Instagram)": "P2", "Link CTR": "P2", "CPC (Cost per Click)": "P2", "Engagement Rate (Social)": "P2", "Social ROAS (platform-reported)": "P2", "Ad Profit & Profit %": "P2",
+  "WhatsApp Delivery Rate": "P2", "WhatsApp Read Rate": "P2", "WhatsApp Click Rate": "P2", "WhatsApp ROI %": "P2", "ROAS by Channel": "P2",
 };
 const KPIS = M_KPIS.map((k, i) => ({
   id: "k" + (i + 1), name: k.name, cat: k.cat, q: KPI_Q[k.name] || k.desc, desc: k.desc,
   plain: k.definition || k.desc, formula: k.formula, dax: k.name.replace(/[^A-Za-z0-9 %()]/g, "") + " = " + k.formula, table: k.table,
   v25: KPI_V[k.name] || "—", wrong: KPI_WRONG[k.name] || "", prio: KPI_TIER[k.name] || "P3",
-  dir: /Bounce|Unsub|Spam|Return|Hard/.test(k.name) ? "lower is better" : "higher is better",
+  dir: /Bounce|Unsub|Spam|Return|Hard|CPC|CPM|CPA|Cost per|Opt-out|Spend/.test(k.name) ? "lower is better" : "higher is better",
 }));
 const KPI_CATS = M_KPI_CATS;
 
 /* ---------------- STATS ---------------- */
 const STATS = [
   { num: fmtN(A.activities), lbl: "Email events (2023–2024)" },
-  { num: "61 · 471", lbl: "Campaigns · email sends" },
+  { num: String(A.campaigns_all || 103), lbl: "Campaigns · Email, FB, IG, WhatsApp" },
   { num: A.human_open_rate + "%", lbl: "Human open rate" },
   { num: "15 → " + M_KPIS.length, lbl: "KPI-doc KPIs → full register" },
-  { num: A.roi + "%", lbl: "Email ROI" },
+  { num: (A.social_platform ? A.social_platform.Facebook.roas : "") + " vs " + (A.social_platform ? A.social_platform.Instagram.roas : ""), lbl: "ROAS: Facebook vs Instagram" },
 ];
 
 /* ---------------- JOURNEY ---------------- */
 const JOURNEY = [
   { id: "j1", t: "Understand the Business Problem", d: "Read the problem statement and the 8 business questions. Write down, in one line, what the CMO wants to decide.", go: "problem", track: "business" },
-  { id: "j2", t: "Explore the Dataset", d: "Open all 7 tables. Note the grains: one row per event in Activities (repeat opens!), one row per day × source × device × region in Web_Engagement.", go: "dataset", track: "business" },
-  { id: "j3", t: "Build the Data Model", d: "Campaigns → Emails → Activities, Customers → Activities/Orders, and Dim_Date to every fact. Web_Engagement joins only through Dim_Date.", go: "model", track: "model" },
+  { id: "j2", t: "Explore the Dataset", d: "Open all 9 tables. Note the grains: one row per event in Activities (repeat opens!), one row per message in WhatsApp_Messages, one row per day × campaign × format × city × device in Social_Ads_Daily, one row per day × source × device × region in Web_Engagement.", go: "dataset", track: "business" },
+  { id: "j3", t: "Build the Data Model", d: "Campaigns → Emails → Activities, Campaigns → Social_Ads_Daily and WhatsApp_Messages, Customers → Activities/WhatsApp/Orders, and Dim_Date to every fact. Web_Engagement joins only through Dim_Date (and on Date × Platform × Device × Region to reconcile ad spend).", go: "model", track: "model" },
   { id: "j4", t: "Clean & Validate the Data", d: "Row counts, Recipients = Delivered + Bounced, no activity before its send, sends after unsubscribe, repeat hard bounces, the missing web day.", go: "quality", track: "model" },
   { id: "j5", t: "Write SQL Queries", d: "Load into MySQL, run the KPI queries and build vw_email_performance and vw_campaign_roi.", go: "sql", track: "sql" },
   { id: "j6", t: "Create KPIs", d: "Implement the 15 KPI-document KPIs first (P1), with the corrected logic. Then the extended register: human opens, CTOR, ROI, ROAS, conversion.", go: "kpis", track: "kpi" },
@@ -558,8 +691,8 @@ const DELIVERABLES = [
   { id: "d12", t: "Resume Project Description", d: "Copy-ready project block and tailored bullets.", where: "Resume, LinkedIn & Portfolio", track: "career" },
 ];
 const BEFORE_AFTER = {
-  before: ["Campaign, email, event, order and web data in separate exports", `Open rate reported as ${A.total_open_rate}% (repeat + machine opens)`, "No link between campaign spend and revenue", "Unique visitors summed, bounce rates averaged", "Every traffic source looks like 16.7%", "Unsubscribed and hard-bounced addresses still mailed"],
-  after: ["MySQL marketing mart (7 tables, 2 views)", "Validated, reconciled KPIs", `Human open rate ${A.human_open_rate}%, CTR ${A.unique_ctr}%, CTOR ${A.ctor}%`, "ROI and ROAS per campaign and type", "Session-weighted web KPIs by source, device and region"],
+  before: ["Campaign, email, event, order and web data in separate exports", `Open rate reported as ${A.total_open_rate}% (repeat + machine opens)`, "No link between campaign spend and revenue", "Instagram judged on likes, WhatsApp not measured at all", "Unique visitors summed, bounce rates averaged", "Every traffic source looks like 12.5%", "Unsubscribed and hard-bounced addresses still mailed"],
+  after: ["MySQL marketing mart (7 tables, 2 views)", "Validated, reconciled KPIs", `Human open rate ${A.human_open_rate}%, CTR ${A.unique_ctr}%, CTOR ${A.ctor}%`, "ROI and ROAS per campaign, type and channel (Email, Facebook, Instagram, WhatsApp)", "Session-weighted web KPIs by source, device and region"],
 };
 
 /* ---------------- PROBLEM ---------------- */
@@ -571,9 +704,14 @@ const REQUIREMENTS = [
   ["R4", "Campaign ROI", "CMO, Finance", "Spend, attributed revenue (Delivered orders), ROI, ROAS by campaign and type", "P2"],
   ["R5", "Web engagement", "Digital / Growth Manager", "Sessions, Unique Visitors, Bounce Rate, Session Duration, Conversion Rate", "P1"],
   ["R6", "Channel, device & region", "Digital / Growth Manager", "Traffic source share, device share, top regions, CVR by source and device", "P1"],
-  ["R7", "Global filters", "All users", "Date, campaign type, campaign, segment, loyalty tier, source, device, region", "P1"],
+  ["R7", "Global filters", "All users", "Date, channel, campaign type, campaign, segment, loyalty tier, source, device, region", "P1"],
+  ["R9", "Social media performance", "Social Media Manager, CMO", "Spend, impressions, CTR, CPC, CPM, engagement rate, likes/comments/shares, ROAS, profit % by platform, format and city", "P2"],
+  ["R10", "WhatsApp campaigns", "CRM Manager", "Sent, delivery, read, click, reply, opt-out rates, cost per message, ROI", "P2"],
+  ["R11", "Channel comparison", "CMO, Finance", "Spend, revenue, ROAS and ROI by channel, with the attribution source labelled", "P2"],
   ["R8", "Data governance", "QA reviewer", "Every KPI reconciles to SQL; KPI-document corrections documented", "P1"],
 ];
+const P_ = (p, k) => (A.social_platform && A.social_platform[p] ? A.social_platform[p][k] : 0);
+const W_ = (k) => (A.wa ? A.wa[k] : 0);
 function bq() {
   const t = TT, ty = (k, f) => (t[k] ? t[k][f] : 0);
   return [
@@ -595,7 +733,7 @@ function bq() {
       rec: "Make {{FirstName}} personalisation the default and schedule promotional sends for 8–11 am; confirm with an A/B test." },
     { q: "Where does web traffic come from, and which source converts?", data: "Web_Engagement (Traffic_Source, Sessions, Conversions)", kpi: "Traffic Source share, Conversion Rate by source",
       analysis: "Sum sessions by source (not row counts) and compute conversions ÷ sessions.",
-      insight: `Organic Search brings ${SRCP("Organic Search")[1]}% of sessions and Paid Ads ${SRCP("Paid Ads")[1]}%, but Email converts best (${MD.src_cvr ? MD.src_cvr.find(x => x[0] === "Email")[1] : 3.71}%) and Social Media worst (${MD.src_cvr ? MD.src_cvr.find(x => x[0] === "Social Media")[1] : 0.72}%, with ${MD.src_bounce ? MD.src_bounce.find(x => x[0] === "Social Media")[1] : 63.9}% bounce). Counting rows would have shown 16.7% for every source.`,
+      insight: `Organic Search brings ${SRCP("Organic Search")[1]}% of sessions and Google Ads ${SRCP("Google Ads")[1]}%, but Email converts best (${MD.src_cvr ? MD.src_cvr.find(x => x[0] === "Email")[1] : 3.71}%) and Instagram worst (${MD.src_cvr ? MD.src_cvr.find(x => x[0] === "Instagram")[1] : 0.5}%, with ${MD.src_bounce ? MD.src_bounce.find(x => x[0] === "Instagram")[1] : 68}% bounce). Counting rows would have shown 12.5% for every source.`,
       rec: "Use email to drive high-intent traffic; fix Social landing pages before adding social spend." },
     { q: "Is mobile hurting conversion?", data: "Web_Engagement (Device_Type)", kpi: "Device share, Conversion Rate by device",
       analysis: "Session share and conversion rate by device.",
@@ -609,6 +747,18 @@ function bq() {
       analysis: "Check repeat hard bounces and deliveries after the unsubscribe date.",
       insight: `Bounce rate is a healthy ${A.bounce_rate}%, but ${A.repeat_hard_bounce_customers} of ${A.hard_bounce_customers} hard-bounced customers were mailed again and ${A.sends_after_unsub} emails went out after an unsubscribe.`,
       rec: "Suppress hard bounces and unsubscribes in real time before each send and add a pre-send check to the campaign checklist." },
+    { q: "Facebook or Instagram: where should social budget go?", data: "Social_Ads_Daily, Campaigns", kpi: "CTR, CPC, Engagement Rate, ROAS, Ad Profit",
+      analysis: "Compare platforms on engagement and on money metrics; subtract product cost to get ad profit.",
+      insight: `Instagram gets the higher engagement rate (${P_("Instagram", "er")}% vs ${P_("Facebook", "er")}%) but Facebook wins on CTR (${P_("Facebook", "ctr")}% vs ${P_("Instagram", "ctr")}%), CPC (₹${P_("Facebook", "cpc")} vs ₹${P_("Instagram", "cpc")}) and ROAS (${P_("Facebook", "roas")} vs ${P_("Instagram", "roas")}). After product cost Facebook ads make ${inrL(P_("Facebook", "profit"))} and Instagram loses ${inrL(-P_("Instagram", "profit"))}. Retargeting returns ${MD.soc_type_roas ? MD.soc_type_roas[0][1] : ""}× while awareness video returns under 0.3×.`,
+      rec: "Move conversion budget to Facebook catalogue retargeting; keep Instagram Reels for launches and judge them on reach and cost per engagement, not ROAS." },
+    { q: "Is WhatsApp worth scaling?", data: "WhatsApp_Messages, Orders (Attributed_Channel = WhatsApp), Customers", kpi: "Delivery, Read, Click rate, Opt-out, ROI",
+      analysis: "Funnel from sent to ordered; ROI on message cost + creative; check opt-outs.",
+      insight: `${fmtN(W_("sent"))} messages: ${W_("delivery_rate")}% delivered, ${W_("read_rate")}% read, ${W_("click_rate")}% clicked, ${W_("optout_rate")}% opted out. ${fmtN(W_("orders"))} delivered orders worth ${inrL(W_("revenue"))} on ${inrL(W_("spend"))} spend: ROI ${W_("roi")}%. Only ${fmtN(W_("opted_in"))} customers are opted in.`,
+      rec: "Grow WhatsApp opt-ins (checkout tick-box, order updates), keep to 2–3 marketing messages a month and watch opt-outs, especially on Re-engagement." },
+    { q: "How do channels compare on return?", data: "Campaigns, Orders, Social_Ads_Daily", kpi: "Spend, Revenue, ROAS by channel",
+      analysis: "Email & WhatsApp revenue from Orders (last click); Facebook & Instagram from Meta's reports. Label the source.",
+      insight: Object.entries(A.channels || {}).map(([k, v]) => `${k}: spend ${inrL(v.spend)}, revenue ${inrL(v.revenue)}, ROAS ${v.roas}`).join("; ") + ". Facebook and Instagram figures are platform-reported, so they're not on the same scale as Email and WhatsApp.",
+      rec: "Fund owned channels (Email, WhatsApp) first, since they are cheap and measured on real orders; scale Meta only where profit, not just ROAS, is positive." },
   ];
 }
 
@@ -623,16 +773,16 @@ const RULES = M_RULES;
 const FOCUS_AREAS = M_FOCUS_AREAS;
 const SOCIAL = M_SOCIAL;
 const SETUP_STEPS = [
-  { i: "⬇️", t: "Get the dataset", d: "AXon_Marketing_Data.xlsx (README + Data_Dictionary + 7 sheets) or the 7 CSV files." },
-  { i: "🗄️", t: "Import into MySQL", d: "Create the tables, load Dim_Date, Campaigns and Customers first, then Emails, Activities, Orders and Web_Engagement. Use LOAD DATA for Activities (313,895 rows)." },
-  { i: "✅", t: "Verify the load", d: "Row counts must match the Dataset page (Activities 313,895; Web_Engagement 52,560)." },
+  { i: "⬇️", t: "Get the dataset", d: "AXon_Marketing_Data.xlsx (README + Data_Dictionary + Integrity_Report + 9 data sheets) or the 9 CSV files." },
+  { i: "🗄️", t: "Import into MySQL", d: "Create the tables, load Dim_Date, Campaigns and Customers first, then Emails, Activities, WhatsApp_Messages, Social_Ads_Daily, Orders and Web_Engagement. Use LOAD DATA for the big tables." },
+  { i: "✅", t: "Verify the load", d: "Row counts must match the Dataset page (Activities 313,895; WhatsApp_Messages 73,221; Social_Ads_Daily 41,736; Web_Engagement 70,080)." },
   { i: "📊", t: "Connect BI tools", d: "Point Tableau and Power BI at MySQL, not at the Excel file." },
 ];
 const SOFTWARE_LINKS = M_SOFTWARE_LINKS;
 const DOCUMENTS = M_DOCUMENTS;
 
 /* ---------------- DATASET ---------------- */
-const COVERAGE_TEXT = `Two full years: 1-Jan-2023 to 31-Dec-2024 (Dim_Date: 731 days with Year_Month, ISO week, weekend flag, Indian fiscal year and a Diwali festive-season flag). AXon Retail is a fictional Indian online fashion & lifestyle retailer. The email side follows the original project structure (Campaigns → Emails → Activities) at recipient level: ${fmtN(A.sent)} emails sent in 471 sends of 61 campaigns to 12,000 subscribers. Orders (${fmtN(A.orders)}) carry last-click email attribution (72 hours). Web_Engagement covers ALL site visitors at day × source × device × region grain; 2024-03-12 is missing (tracking outage). Money is in ₹.`;
+const COVERAGE_TEXT = `Two full years: 1-Jan-2023 to 31-Dec-2024 (Dim_Date: 762 days to 31-Jan-2025 so late January events still join, with Year_Month, ISO week, weekend flag, Indian fiscal year and a Diwali festive-season flag). AXon Retail is a fictional Indian online fashion & lifestyle retailer. The email side follows the original project structure (Campaigns → Emails → Activities) at recipient level: ${fmtN(A.sent)} emails sent in 471 sends of 61 campaigns to 12,000 subscribers. Facebook and Instagram ad results come day by day in Social_Ads_Daily (Meta Ads Manager export) and WhatsApp template messages in WhatsApp_Messages. Orders (${fmtN(A.orders)}) carry last-click Email/WhatsApp attribution (72 hours). Web_Engagement covers ALL site visitors at day × source × device × region grain; 2024-03-12 is missing (tracking outage). Money is in ₹.`;
 const STORY = [
   ["Every send", "Opens look better than they are", `${f1(A.machine_open_share)}% of opens are Apple Mail machine opens; many more are repeats`, "Human open rate card, Open rate by email client"],
   ["Always on", "Cart Abandonment carries email revenue", `${Math.round(TT["Cart Abandonment"] ? TT["Cart Abandonment"].roi : 1786)}% ROI on ${inr(TT["Cart Abandonment"] ? TT["Cart Abandonment"].Actual_Spend_INR : 89600)} spend`, "ROI by campaign type"],
@@ -640,21 +790,25 @@ const STORY = [
   ["Oct–Nov", "Diwali drives traffic", `Festive-season days get +${f1(A.festive_lift)}% sessions; peak month Oct 2024`, "Engagement by date"],
   ["Every visit", "Mobile browses, desktop buys", `Mobile ${MD.device_pct ? MD.device_pct[0][1] : 64}% of sessions, CVR ${MD.device_cvr ? MD.device_cvr[1][1] : 1.51}% vs ${MD.device_cvr ? MD.device_cvr[0][1] : 2.32}% desktop`, "Device share and CVR"],
   ["12-Mar-2024", "A day is missing", "Tracking outage: no web rows for 2024-03-12", "Engagement by date (gap)"],
+  ["Every campaign", "Likes ≠ profit", `Instagram ER ${P_("Instagram", "er")}% vs Facebook ${P_("Facebook", "er")}%, but ROAS ${P_("Instagram", "roas")} vs ${P_("Facebook", "roas")}`, "Social platform comparison"],
+  ["Every broadcast", "WhatsApp gets read", `${W_("read_rate")}% read rate, ${W_("roi")}% ROI on a small opted-in base`, "WhatsApp funnel"],
 ];
-const TABLE_TYPES = { "Campaigns": "Dimension", "Emails": "Fact", "Activities": "Fact", "Customers": "Dimension", "Orders": "Fact", "Web_Engagement": "Fact", "Dim_Date": "Dimension" };
-const TABLE_SRC = { "Campaigns": "Campaigns", "Emails": "Emails", "Activities": "Activities", "Customers": "Customers", "Orders": "Orders", "Web_Engagement": "Web_Engagement", "Dim_Date": "Dim_Date" };
-const TABLE_PK = { "Campaigns": "Campaign_ID", "Emails": "Email_ID", "Activities": "Activity_ID", "Customers": "Customer_ID", "Orders": "Order_ID", "Web_Engagement": "(Date, Traffic_Source, Device_Type, Region)", "Dim_Date": "Date" };
-const TABLE_FK = { "Emails": "Campaign_ID", "Activities": "Email_ID, Customer_ID", "Orders": "Customer_ID, Attributed_Email_ID, Attributed_Campaign_ID", "Web_Engagement": "Date only" };
-const TABLE_GRAIN = { "Campaigns": "1 row per campaign", "Emails": "1 row per email send", "Activities": "1 row per recipient event (repeat opens/clicks possible)", "Customers": "1 row per subscriber", "Orders": "1 row per order", "Web_Engagement": "1 row per day × source × device × region", "Dim_Date": "1 row per day (731)" };
-const TABLE_DATE = { "Campaigns": "Start_Date, End_Date", "Emails": "Email_Sent_Date", "Activities": "Activity_Date (datetime)", "Customers": "Signup_Date, Unsubscribe_Date", "Orders": "Order_Date", "Web_Engagement": "Date", "Dim_Date": "Date, Year_Month, Week_Num, Festive_Season" };
+const TABLE_TYPES = { "Campaigns": "Dimension", "Emails": "Fact", "Activities": "Fact", "WhatsApp_Messages": "Fact", "Social_Ads_Daily": "Fact", "Customers": "Dimension", "Orders": "Fact", "Web_Engagement": "Fact", "Dim_Date": "Dimension" };
+const TABLE_SRC = { "WhatsApp_Messages": "WhatsApp_Messages", "Social_Ads_Daily": "Social_Ads_Daily", "Campaigns": "Campaigns", "Emails": "Emails", "Activities": "Activities", "Customers": "Customers", "Orders": "Orders", "Web_Engagement": "Web_Engagement", "Dim_Date": "Dim_Date" };
+const TABLE_PK = { "WhatsApp_Messages": "Message_ID", "Social_Ads_Daily": "Ad_Row_ID (grain: Date, Campaign_ID, Ad_Format, City, Device_Type)", "Campaigns": "Campaign_ID", "Emails": "Email_ID", "Activities": "Activity_ID", "Customers": "Customer_ID", "Orders": "Order_ID", "Web_Engagement": "(Date, Traffic_Source, Device_Type, Region)", "Dim_Date": "Date" };
+const TABLE_FK = { "WhatsApp_Messages": "Campaign_ID, Customer_ID", "Social_Ads_Daily": "Campaign_ID (+ Date × Platform × Device × Region ↔ Web_Engagement)", "Emails": "Campaign_ID", "Activities": "Email_ID, Customer_ID", "Orders": "Customer_ID, Attributed_Campaign_ID, Attributed_Email_ID, Attributed_Message_ID", "Web_Engagement": "Date only" };
+const TABLE_GRAIN = { "WhatsApp_Messages": "1 row per message (final status)", "Social_Ads_Daily": "1 row per day × campaign × ad format × city × device", "Campaigns": "1 row per campaign", "Emails": "1 row per email send", "Activities": "1 row per recipient event (repeat opens/clicks possible)", "Customers": "1 row per subscriber", "Orders": "1 row per order", "Web_Engagement": "1 row per day × source × device × region", "Dim_Date": "1 row per day (762)" };
+const TABLE_DATE = { "WhatsApp_Messages": "Sent_Time, Delivered_Time, Read_Time, Click_Time", "Social_Ads_Daily": "Date", "Campaigns": "Start_Date, End_Date", "Emails": "Email_Sent_Date", "Activities": "Activity_Date (datetime)", "Customers": "Signup_Date, Unsubscribe_Date", "Orders": "Order_Date", "Web_Engagement": "Date", "Dim_Date": "Date, Year_Month, Week_Num, Festive_Season" };
 const TABLE_PURPOSE = {
-  "Campaigns": ["The 61 campaigns: type, objective, dates, budget and actual spend.", "Every ROI number needs Actual_Spend_INR from here."],
+  "WhatsApp_Messages": ["Every WhatsApp template message with its final status, read, click, reply, opt-out and cost.", "The WhatsApp funnel and ROI; orders attribute back through Attributed_Message_ID."],
+  "Social_Ads_Daily": ["Daily Facebook and Instagram ad results by campaign, format, city and device (Meta Ads Manager export).", "Spend, impressions, clicks, likes, comments, shares, purchases and ROAS per platform."],
+  "Campaigns": ["All 103 campaigns across Email, Facebook, Instagram and WhatsApp: type, dates, budget, actual spend, UTM codes.", "Every ROI number needs Actual_Spend_INR from here; Channel decides which fact table holds the events."],
   "Emails": ["Each send of a campaign, with subject, send time, A/B variant and recipients.", "The bridge between campaigns and events; Recipients is the denominator of Delivery Rate."],
   "Activities": ["Every Delivered, Bounced, Open, Click, Unsubscribe and Spam Complaint event per recipient.", "All email engagement KPIs come from here, and its repeat rows are the main trap."],
   "Customers": ["The 12,000 subscribers: region, email client, loyalty tier, opt-in status.", "Explains Apple Mail machine opens and lets you segment engagement and revenue."],
-  "Orders": ["Subscriber orders with status and last-click email attribution.", "Turns engagement into revenue: ROI, ROAS, conversion."],
+  "Orders": ["Subscriber orders with status, product cost, coupon and last-click Email/WhatsApp attribution.", "Turns engagement into revenue and profit: ROI, ROAS, conversion, gross margin."],
   "Web_Engagement": ["Daily website traffic by source, device and region for all visitors.", "The whole web dashboard: sessions, bounce, duration, conversion, ad spend."],
-  "Dim_Date": ["The 2023–2024 calendar with month, week, fiscal year and Diwali window.", "One date axis for emails, activities, orders and web traffic."],
+  "Dim_Date": ["The calendar 2023-01-01 → 2025-01-31 with month, week, fiscal year, Diwali window and a reporting-period flag.", "One date axis for every fact table; covers late January events so no date is orphaned."],
 };
 const RELATIONSHIPS = M_RELATIONSHIPS;
 const LOAD_ORDER = M_LOAD_ORDER;
@@ -668,12 +822,15 @@ const NULL_NOTES = [
   "Emails.AB_Variant is blank for 441 of 471 sends: only 15 subject-line tests (A and B) were run.",
   "Orders.Attributed_Email_ID / Attributed_Campaign_ID are NULL for orders not preceded by an email click in the last 72 hours. That's most orders, and it's correct.",
   "Customers.Unsubscribe_Date is NULL for subscribed customers; Email_Opt_In = 'No' for those who unsubscribed.",
-  `${A.acts_after_calendar || 36} activities happen on 1–2 Jan 2025 (opens of late-December sends), after Dim_Date ends. Extend the calendar or they drop out of date-filtered visuals.`,
-  "Web_Engagement has no row for 2024-03-12 (tracking outage): 730 days of data instead of 731. Don't fill it with zeros.",
+  `${A.acts_after_calendar || 36} activities (and some WhatsApp reads) happen in January 2025, after the reporting period. Dim_Date runs to 2025-01-31 so they still join; filter Is_Reporting_Period = 'Yes' for 2023–2024 totals.`,
+  "Web_Engagement has no row for 2024-03-12 (tracking outage): 730 days of data in 2023–2024 instead of 731. Don't fill it with zeros.",
+  "WhatsApp_Messages.Failure_Reason is filled only for Failed messages; Delivered_Time is NULL for them, Read_Time is NULL for messages not read, Click_Time only when Button_Clicked = Yes.",
+  "Social_Ads_Daily.Video_Views_3s is 0 for Image, Carousel and Collection ads (no video). Reels and Stories exist only on Instagram, Collection only on Facebook.",
+  "Orders.Coupon_Code is NULL when there was no discount; Attributed_Email_ID and Attributed_Message_ID are filled only for their own channel.",
   "Activities has several Open/Click rows for the same recipient and email (repeat opens) and Apple Mail opens a few seconds after delivery (machine opens). Real behaviour, not duplicates to delete.",
 ];
 const DQ_RULES = [
-  ["Row counts", "COUNT(*) per table matches the Dataset page", "All 7 tables", "Critical"],
+  ["Row counts", "COUNT(*) per table matches the Dataset page", "All 9 tables", "Critical"],
   ["Key uniqueness", "No duplicate Campaign_ID, Email_ID, Activity_ID, Customer_ID, Order_ID", "All tables", "Critical"],
   ["Referential integrity", "Every Email has a Campaign, every Activity an Email and a Customer", "Emails, Activities, Orders", "Critical"],
   ["Send reconciliation", "Recipients = Delivered + Bounced rows per email", "Emails vs Activities", "High"],
@@ -683,6 +840,10 @@ const DQ_RULES = [
   ["Web additivity", "Bounced_Sessions ≤ Sessions; Unique_Visitors ≤ Sessions", "Web_Engagement", "Medium"],
   ["Calendar coverage", "Every Web date present (one known gap); activities inside Dim_Date", "Web_Engagement, Dim_Date", "Medium"],
   ["Revenue rule", "Revenue uses Delivered orders only", "Orders", "High"],
+  ["Channel consistency", "Social_Ads_Daily.Platform = Campaigns.Channel; WhatsApp only on WhatsApp campaigns", "Social_Ads_Daily, WhatsApp_Messages", "Critical"],
+  ["Spend reconciliation", "Campaigns.Actual_Spend = SUM(daily ad spend); Meta spend = Web Ad_Spend by day", "Campaigns, Social_Ads_Daily, Web_Engagement", "High"],
+  ["Consent", "No WhatsApp message before WhatsApp_Opt_In_Date", "WhatsApp_Messages, Customers", "Critical"],
+  ["Status sequence", "Sent ≤ Delivered ≤ Read ≤ Click", "WhatsApp_Messages", "Medium"],
 ];
 const INTERVIEW_TRAPS = [
   ["Open rate = Open rows ÷ Delivered", "Unique openers ÷ Delivered, and remove machine opens"],
@@ -693,6 +854,10 @@ const INTERVIEW_TRAPS = [
   ["Source share = count of rows", "Sum Sessions: rows are equal for every source"],
   ["Revenue = SUM of all orders", "Delivered orders only; returns and cancellations aren't revenue"],
   ["Best campaign = most activities", "Agree the metric: CTR, conversion or ROI"],
+  ["Instagram is best: most likes", "Judge on ROAS and profit; engagement ≠ revenue"],
+  ["WhatsApp delivered = status 'Delivered'", "Delivered + Read (status is the last state)"],
+  ["Total reach = SUM(Reach)", "Reach is de-duplicated per row; summing double-counts"],
+  ["Add Meta purchase value to Orders revenue", "Different attribution sources: label, don't add"],
 ];
 const PRESENTATION = [
   ["01", "Group Details", "15 sec", "Team members and who owned Excel, SQL, Tableau, Power BI and QA."],
@@ -702,7 +867,7 @@ const PRESENTATION = [
   ["05", "Tableau Dashboard", "60 sec", "Email Campaign and Web Engagement pages."],
   ["06", "Power BI Dashboard", "60 sec", "Same pages in Power BI, reconciled."],
   ["07", "SQL Query Image", "30 sec", "Screenshot of the KPI queries and the vw_email_performance view."],
-  ["08", "Key Takeaway", "45 sec", `Human open ${A.human_open_rate}%, ROI ${A.roi}%, Cart Abandonment best, Re-engagement worst, mobile converts less.`],
+  ["08", "Key Takeaway", "45 sec", `Human open ${A.human_open_rate}%, email ROI ${A.roi}%, Facebook ROAS ${P_("Facebook", "roas")} vs Instagram ${P_("Instagram", "roas")}, WhatsApp ROI ${W_("roi")}%, mobile converts less.`],
 ];
 /* ---------------- SQL LAB (MySQL) ---------------- */
 const VW_EMAIL = `CREATE OR REPLACE VIEW vw_email_performance AS
@@ -760,7 +925,7 @@ GROUP BY c.campaign_id, c.campaign_name, c.campaign_type, c.actual_spend_inr;
 
 const SQL_BLOCKS = [
   { cat: "Setup", title: "1 · Create the tables (MySQL)", desc: "Dimensions first. Activities, Orders and Web_Engagement are the big ones.",
-    sql: "CREATE DATABASE axon_marketing;\nUSE axon_marketing;\n\nCREATE TABLE dim_date (date DATE PRIMARY KEY, year INT, quarter VARCHAR(2), month_num INT, month_name VARCHAR(3),\n  year_month CHAR(7), week_num INT, day_name VARCHAR(10), is_weekend VARCHAR(3), fiscal_year VARCHAR(10), festive_season VARCHAR(3));\nCREATE TABLE campaigns (campaign_id VARCHAR(10) PRIMARY KEY, campaign_name VARCHAR(80), campaign_type VARCHAR(30), objective VARCHAR(20),\n  channel VARCHAR(10), target_segment VARCHAR(40), product_category VARCHAR(40), start_date DATE, end_date DATE NULL,\n  budget_inr INT, actual_spend_inr INT, discount_offer_pct INT, campaign_manager VARCHAR(40));\nCREATE TABLE customers (customer_id VARCHAR(12) PRIMARY KEY, signup_date DATE, city VARCHAR(40), state VARCHAR(40), region VARCHAR(10),\n  age_band VARCHAR(10), gender VARCHAR(10), acquisition_channel VARCHAR(30), email_client VARCHAR(20), loyalty_tier VARCHAR(10),\n  email_opt_in VARCHAR(3), unsubscribe_date DATETIME NULL);\nCREATE TABLE emails (email_id VARCHAR(12) PRIMARY KEY, campaign_id VARCHAR(10), email_subject VARCHAR(120), email_sent_date DATETIME,\n  email_sequence INT, ab_variant VARCHAR(2), audience_segment VARCHAR(40), recipients INT, is_personalised_subject VARCHAR(3), subject_length INT,\n  FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id));\nCREATE TABLE activities (activity_id VARCHAR(12) PRIMARY KEY, email_id VARCHAR(12), customer_id VARCHAR(12), activity_type VARCHAR(20),\n  activity_date DATETIME, bounce_type VARCHAR(5) NULL, link_name VARCHAR(40) NULL, device_type VARCHAR(10) NULL,\n  INDEX (email_id), INDEX (customer_id), INDEX (activity_type));\nCREATE TABLE orders (order_id VARCHAR(12) PRIMARY KEY, customer_id VARCHAR(12), order_date DATETIME, product_category VARCHAR(40), units INT,\n  gross_amount_inr DECIMAL(12,2), discount_inr DECIMAL(12,2), net_revenue_inr DECIMAL(12,2), order_channel VARCHAR(10), payment_mode VARCHAR(20),\n  order_status VARCHAR(10), attributed_email_id VARCHAR(12) NULL, attributed_campaign_id VARCHAR(10) NULL);\nCREATE TABLE web_engagement (date DATE, traffic_source VARCHAR(20), device_type VARCHAR(10), region VARCHAR(10), sessions INT, unique_visitors INT,\n  new_visitors INT, page_views INT, bounced_sessions INT, bounce_rate_pct DECIMAL(5,2), avg_session_duration_min DECIMAL(5,2), conversions INT,\n  revenue_inr DECIMAL(14,2), ad_spend_inr DECIMAL(14,2), PRIMARY KEY (date, traffic_source, device_type, region));\n\n-- Activities (313,895 rows): LOAD DATA is far faster than the import wizard\nLOAD DATA LOCAL INFILE 'Activities.csv' INTO TABLE activities\nFIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' IGNORE 1 LINES\n(activity_id, email_id, customer_id, activity_type, activity_date, @b, @l, @d)\nSET bounce_type = NULLIF(@b,''), link_name = NULLIF(@l,''), device_type = NULLIF(@d,'');" },
+    sql: "CREATE DATABASE axon_marketing;\nUSE axon_marketing;\n\nCREATE TABLE dim_date (date DATE PRIMARY KEY, year INT, quarter VARCHAR(2), month_num INT, month_name VARCHAR(3),\n  year_month CHAR(7), week_num INT, day_name VARCHAR(10), is_weekend VARCHAR(3), fiscal_year VARCHAR(10), festive_season VARCHAR(3));\nCREATE TABLE campaigns (campaign_id VARCHAR(10) PRIMARY KEY, campaign_name VARCHAR(80), campaign_type VARCHAR(30), objective VARCHAR(20),\n  channel VARCHAR(10), target_segment VARCHAR(40), product_category VARCHAR(40), start_date DATE, end_date DATE NULL,\n  budget_inr INT, actual_spend_inr INT, discount_offer_pct INT, campaign_manager VARCHAR(40));\nCREATE TABLE customers (customer_id VARCHAR(12) PRIMARY KEY, signup_date DATE, city VARCHAR(40), state VARCHAR(40), region VARCHAR(10),\n  age_band VARCHAR(10), gender VARCHAR(10), acquisition_channel VARCHAR(30), email_client VARCHAR(20), loyalty_tier VARCHAR(10),\n  email_opt_in VARCHAR(3), unsubscribe_date DATETIME NULL);\nCREATE TABLE emails (email_id VARCHAR(12) PRIMARY KEY, campaign_id VARCHAR(10), email_subject VARCHAR(120), email_sent_date DATETIME,\n  email_sequence INT, ab_variant VARCHAR(2), audience_segment VARCHAR(40), recipients INT, is_personalised_subject VARCHAR(3), subject_length INT,\n  FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id));\nCREATE TABLE activities (activity_id VARCHAR(12) PRIMARY KEY, email_id VARCHAR(12), customer_id VARCHAR(12), activity_type VARCHAR(20),\n  activity_date DATETIME, bounce_type VARCHAR(5) NULL, link_name VARCHAR(40) NULL, device_type VARCHAR(10) NULL,\n  INDEX (email_id), INDEX (customer_id), INDEX (activity_type));\nCREATE TABLE orders (order_id VARCHAR(12) PRIMARY KEY, customer_id VARCHAR(12), order_date DATETIME, product_category VARCHAR(40), units INT,\n  gross_amount_inr DECIMAL(12,2), discount_inr DECIMAL(12,2), net_revenue_inr DECIMAL(12,2), order_channel VARCHAR(10), payment_mode VARCHAR(20),\n  order_status VARCHAR(10), attributed_email_id VARCHAR(12) NULL, attributed_campaign_id VARCHAR(10) NULL);\nCREATE TABLE web_engagement (date DATE, traffic_source VARCHAR(20), device_type VARCHAR(10), region VARCHAR(10), sessions INT, unique_visitors INT,\n  new_visitors INT, page_views INT, bounced_sessions INT, bounce_rate_pct DECIMAL(5,2), avg_session_duration_min DECIMAL(5,2), conversions INT,\n  revenue_inr DECIMAL(14,2), ad_spend_inr DECIMAL(14,2), PRIMARY KEY (date, traffic_source, device_type, region));\nCREATE TABLE whatsapp_messages (message_id VARCHAR(12) PRIMARY KEY, campaign_id VARCHAR(10), customer_id VARCHAR(12), template_name VARCHAR(40),\n  sent_time DATETIME, message_status VARCHAR(10), failure_reason VARCHAR(40) NULL, delivered_time DATETIME NULL, read_time DATETIME NULL,\n  button_clicked VARCHAR(3), click_time DATETIME NULL, replied VARCHAR(3), opted_out VARCHAR(3), cost_inr DECIMAL(6,2),\n  FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id), FOREIGN KEY (customer_id) REFERENCES customers(customer_id));\nCREATE TABLE social_ads_daily (ad_row_id VARCHAR(10) PRIMARY KEY, date DATE, campaign_id VARCHAR(10), platform VARCHAR(10), ad_format VARCHAR(12),\n  city VARCHAR(20), region VARCHAR(10), device_type VARCHAR(10), impressions INT, reach INT, link_clicks INT, landing_page_views INT, add_to_cart INT,\n  likes INT, comments INT, shares INT, saves INT, video_views_3s INT, spend_inr DECIMAL(12,2), purchases INT, purchase_value_inr DECIMAL(14,2),\n  purchase_gross_margin_inr DECIMAL(14,2), UNIQUE (date, campaign_id, ad_format, city, device_type),\n  FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id));\n-- Campaigns also has channel, utm_source, utm_campaign; Customers has whatsapp_opt_in, whatsapp_opt_in_date; Orders has product_cost_inr,\n-- coupon_code, attributed_channel and attributed_message_id (see the Data Dictionary)\n\n-- Activities (313,895 rows): LOAD DATA is far faster than the import wizard\nLOAD DATA LOCAL INFILE 'Activities.csv' INTO TABLE activities\nFIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' IGNORE 1 LINES\n(activity_id, email_id, customer_id, activity_type, activity_date, @b, @l, @d)\nSET bounce_type = NULLIF(@b,''), link_name = NULLIF(@l,''), device_type = NULLIF(@d,'');" },
   { cat: "Setup", title: "2 · Verify the load: row counts", desc: "Every count must match before you build anything.", sql: M_SQL_BLOCKS[0].sql },
   { cat: "KPI", title: "3 · Delivery rate — and why the KPI document's version isn't a rate", desc: "Same unit on top and bottom.",
     sql: "SELECT SUM(recipients) AS sent FROM emails;                               -- 177,032\n\nSELECT SUM(activity_type = 'Delivered') AS delivered,                      -- 174,058\n       SUM(activity_type = 'Bounced')   AS bounced,                        -- 2,974\n       ROUND(100 * SUM(activity_type = 'Delivered')\n             / (SELECT SUM(recipients) FROM emails), 2) AS delivery_rate   -- 98.32\nFROM activities;\n\n-- KPI-document formula: delivered activities ÷ unique emails\nSELECT ROUND(SUM(activity_type = 'Delivered') / COUNT(DISTINCT email_id), 1) AS doc_value   -- 369.5 (per email, not %)\nFROM activities;" },
@@ -771,7 +936,7 @@ const SQL_BLOCKS = [
   { cat: "KPI", title: "6 · Activity breakdown, campaign engagement rate, avg activity per email", desc: "The KPI document's campaign KPIs. SUM() OVER () = ALL().",
     sql: "SELECT activity_type, COUNT(*) AS n,\n       ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct\nFROM activities GROUP BY activity_type ORDER BY n DESC;\n-- Delivered 174,058 · Open 120,932 · Click 15,432 · Bounced 2,974 · Unsubscribe 465 · Spam Complaint 34\n\nSELECT c.campaign_name, COUNT(*) AS activities,\n       ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS engagement_rate_pct\nFROM activities a JOIN emails e ON e.email_id = a.email_id JOIN campaigns c ON c.campaign_id = e.campaign_id\nGROUP BY c.campaign_name ORDER BY activities DESC LIMIT 5;\n-- Cart Abandonment Reminders 31,813 (10.1) · Diwali Mega Sale 2024 13,585 · Diwali Mega Sale 2023 10,782 ...\n\nSELECT ROUND(COUNT(*) / COUNT(DISTINCT email_id), 1) AS avg_activity_per_email FROM activities;   -- 666.4" },
   { cat: "KPI", title: "7 · Email sent vs activity timeline", desc: "Monthly sends next to monthly activity.",
-    sql: "SELECT DATE_FORMAT(e.email_sent_date, '%Y-%m') AS ym, SUM(e.recipients) AS sent\nFROM emails e GROUP BY ym ORDER BY ym;\n\nSELECT DATE_FORMAT(activity_date, '%Y-%m') AS ym, COUNT(*) AS activities\nFROM activities GROUP BY ym ORDER BY ym;   -- note: 2025-01 has 36 late opens" },
+    sql: "SELECT DATE_FORMAT(e.email_sent_date, '%Y-%m') AS ym, SUM(e.recipients) AS sent\nFROM emails e GROUP BY ym ORDER BY ym;\n\nSELECT DATE_FORMAT(activity_date, '%Y-%m') AS ym, COUNT(*) AS activities\nFROM activities GROUP BY ym ORDER BY ym;   -- note: 2025-01 has 36 late opens (Dim_Date runs to 2025-01-31, so they still join)" },
   { cat: "Mart view", title: "8 · The email mart view (vw_email_performance)", desc: "One row per email; every email KPI becomes SUM ÷ SUM. Both BI tools read this view.", sql: VW_EMAIL },
   { cat: "Mart view", title: "9 · Campaign ROI view (vw_campaign_roi)", desc: "Revenue = Delivered orders attributed to the campaign.", sql: VW_ROI },
   { cat: "Breakdown", title: "10 · ROI, open rate and CTR by campaign type", desc: "Join the two views on campaign.",
@@ -779,27 +944,97 @@ const SQL_BLOCKS = [
   { cat: "Breakdown", title: "11 · Personalisation, send time and email client", desc: "Human open rate by segment.",
     sql: "SELECT e.is_personalised_subject, ROUND(100 * SUM(v.human_unique_opens) / SUM(v.delivered), 1) AS human_open\nFROM vw_email_performance v JOIN emails e ON e.email_id = v.email_id GROUP BY 1;   -- Yes 35.9 · No 30.6\n\nSELECT CASE WHEN HOUR(email_sent_date) < 12 THEN 'Morning' WHEN HOUR(email_sent_date) < 17 THEN 'Afternoon' ELSE 'Evening' END AS band,\n       ROUND(100 * SUM(human_unique_opens) / SUM(delivered), 1) AS human_open\nFROM vw_email_performance GROUP BY band;   -- Morning 33.4 · Afternoon 29.7 · Evening 29.7" },
   { cat: "Web", title: "12 · Web KPIs: weighted vs naive", desc: "The KPI document's web formulas next to the correct ones.",
-    sql: "SELECT SUM(sessions)                                              AS sessions,          -- 16,024,918\n       SUM(unique_visitors)                                       AS uv_sum,            -- 12,637,253 (visitor-days)\n       ROUND(100 * SUM(bounced_sessions) / SUM(sessions), 2)      AS bounce_weighted,   -- 49.28\n       ROUND(AVG(bounce_rate_pct), 2)                             AS bounce_avg,        -- 45.90 ✗\n       ROUND(SUM(sessions * avg_session_duration_min) / SUM(sessions), 2) AS dur_weighted, -- 5.60\n       ROUND(AVG(avg_session_duration_min), 2)                    AS dur_avg,           -- 6.24 ✗\n       ROUND(100 * SUM(conversions) / SUM(sessions), 2)           AS cvr                -- 1.77\nFROM web_engagement;" },
-  { cat: "Web", title: "13 · Traffic source, device and region", desc: "Sum sessions; row counts give 16.7% / 33.3% to everyone.",
-    sql: "SELECT traffic_source,\n       ROUND(100 * SUM(sessions) / SUM(SUM(sessions)) OVER (), 1) AS session_share,   -- Organic 30.3 · Paid 23.0 · Social 18.9 ...\n       ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)           AS row_share,       -- 16.7 for every source ✗\n       ROUND(100 * SUM(conversions) / SUM(sessions), 2)            AS cvr              -- Email 3.71 best · Social 0.72 worst\nFROM web_engagement GROUP BY traffic_source ORDER BY session_share DESC;\n\nSELECT device_type, ROUND(100 * SUM(sessions) / SUM(SUM(sessions)) OVER (), 1) AS share,\n       ROUND(100 * SUM(conversions) / SUM(sessions), 2) AS cvr\nFROM web_engagement GROUP BY device_type;   -- Mobile 64.0 / 1.51 · Desktop 30.0 / 2.32 · Tablet 6.0 / 1.88\n\nSELECT region, SUM(unique_visitors) AS uv FROM web_engagement GROUP BY region ORDER BY uv DESC;   -- West first" },
+    sql: "SELECT SUM(sessions)                                              AS sessions,          -- 15,885,884\n       SUM(unique_visitors)                                       AS uv_sum,            -- 12,575,861 (visitor-days)\n       ROUND(100 * SUM(bounced_sessions) / SUM(sessions), 2)      AS bounce_weighted,   -- 49.04\n       ROUND(AVG(bounce_rate_pct), 2)                             AS bounce_avg,        -- 44.29 ✗\n       ROUND(SUM(sessions * avg_session_duration_min) / SUM(sessions), 2) AS dur_weighted, -- 5.65\n       ROUND(AVG(avg_session_duration_min), 2)                    AS dur_avg,           -- 5.49 ✗\n       ROUND(100 * SUM(conversions) / SUM(sessions), 2)           AS cvr                -- 1.81\nFROM web_engagement;" },
+  { cat: "Web", title: "13 · Traffic source, device and region", desc: "Sum sessions; row counts give 12.5% / 33.3% to everyone.",
+    sql: "SELECT traffic_source,\n       ROUND(100 * SUM(sessions) / SUM(SUM(sessions)) OVER (), 1) AS session_share,   -- Organic 30.6 · Google Ads 23.2 · Direct 15.3 · Facebook 8.3 · Instagram 8.2 ...\n       ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)           AS row_share,       -- 12.5 for every source ✗\n       ROUND(100 * SUM(conversions) / SUM(sessions), 2)            AS cvr              -- Email 3.71 best · Instagram 0.53 worst\nFROM web_engagement GROUP BY traffic_source ORDER BY session_share DESC;\n\nSELECT device_type, ROUND(100 * SUM(sessions) / SUM(SUM(sessions)) OVER (), 1) AS share,\n       ROUND(100 * SUM(conversions) / SUM(sessions), 2) AS cvr\nFROM web_engagement GROUP BY device_type;   -- Mobile 68.6 / 1.51 · Desktop 26.3 / 2.55 · Tablet 5.1 / 2.09\n\nSELECT region, SUM(unique_visitors) AS uv FROM web_engagement GROUP BY region ORDER BY uv DESC;   -- West first" },
   { cat: "Web", title: "14 · Monthly engagement, YoY and the missing day", desc: "Find the gap before you draw a line chart.",
-    sql: "SELECT DATE_FORMAT(date, '%Y-%m') AS ym, SUM(sessions) AS sessions, SUM(conversions) AS conv\nFROM web_engagement GROUP BY ym ORDER BY ym;   -- peak 2024-10: 1,094,852 sessions\n\nSELECT d.date FROM dim_date d LEFT JOIN (SELECT DISTINCT date FROM web_engagement) w ON w.date = d.date\nWHERE w.date IS NULL;   -- 2024-03-12\n\nSELECT ROUND(100 * (SUM(CASE WHEN YEAR(date) = 2024 THEN sessions END)\n                  / SUM(CASE WHEN YEAR(date) = 2023 THEN sessions END) - 1), 1) AS sessions_yoy   -- 22.7\nFROM web_engagement;" },
-  { cat: "Data quality", title: "15 · List hygiene checks", desc: M_SQL_BLOCKS[4].desc, sql: M_SQL_BLOCKS[4].sql },
+    sql: "SELECT DATE_FORMAT(date, '%Y-%m') AS ym, SUM(sessions) AS sessions, SUM(conversions) AS conv\nFROM web_engagement GROUP BY ym ORDER BY ym;   -- peak 2024-10: 1,092,797 sessions\n\nSELECT d.date FROM dim_date d LEFT JOIN (SELECT DISTINCT date FROM web_engagement) w ON w.date = d.date\nWHERE w.date IS NULL;   -- 2024-03-12\n\nSELECT ROUND(100 * (SUM(CASE WHEN YEAR(date) = 2024 THEN sessions END)\n                  / SUM(CASE WHEN YEAR(date) = 2023 THEN sessions END) - 1), 1) AS sessions_yoy   -- 21.3\nFROM web_engagement;" },
+  { cat: "Social", title: "15 · Facebook vs Instagram: the full scorecard", desc: "Ratios of sums, never averages of row ratios.",
+    sql: `SELECT platform,
+       ROUND(SUM(spend_inr))                                   AS spend,
+       SUM(impressions)                                        AS impressions,
+       ROUND(100 * SUM(link_clicks) / SUM(impressions), 2)     AS ctr_pct,
+       ROUND(SUM(spend_inr) / SUM(link_clicks), 2)             AS cpc,
+       ROUND(1000 * SUM(spend_inr) / SUM(impressions), 2)      AS cpm,
+       ROUND(100 * (SUM(likes)+SUM(comments)+SUM(shares)+SUM(saves)) / SUM(impressions), 2) AS engagement_rate,
+       SUM(likes) likes, SUM(comments) comments, SUM(shares) shares,
+       ROUND(SUM(purchase_value_inr) / SUM(spend_inr), 2)       AS roas,
+       ROUND(SUM(purchase_gross_margin_inr) - SUM(spend_inr))  AS ad_profit
+FROM social_ads_daily GROUP BY platform;
+-- Facebook  ctr ${P_("Facebook", "ctr")} · cpc ${P_("Facebook", "cpc")} · ER ${P_("Facebook", "er")} · ROAS ${P_("Facebook", "roas")} · profit ${P_("Facebook", "profit")}
+-- Instagram ctr ${P_("Instagram", "ctr")} · cpc ${P_("Instagram", "cpc")} · ER ${P_("Instagram", "er")} · ROAS ${P_("Instagram", "roas")} · profit ${P_("Instagram", "profit")}` },
+  { cat: "Social", title: "16 · ROAS by campaign type, ad format and city", desc: "Where social money works.",
+    sql: `SELECT c.campaign_type, ROUND(SUM(s.purchase_value_inr) / SUM(s.spend_inr), 2) AS roas
+FROM social_ads_daily s JOIN campaigns c ON c.campaign_id = s.campaign_id
+GROUP BY c.campaign_type ORDER BY roas DESC;
+-- ${(MD.soc_type_roas || []).map(x => x[0] + " " + x[1]).join(" · ")}
+
+SELECT ad_format, ROUND(100 * SUM(link_clicks) / SUM(impressions), 2) AS ctr,
+       ROUND(100 * (SUM(likes)+SUM(comments)+SUM(shares)+SUM(saves)) / SUM(impressions), 2) AS er
+FROM social_ads_daily GROUP BY ad_format ORDER BY ctr DESC;
+
+SELECT city, ROUND(SUM(spend_inr)) spend, ROUND(SUM(purchase_value_inr) / SUM(spend_inr), 2) roas
+FROM social_ads_daily GROUP BY city ORDER BY roas DESC;` },
+  { cat: "WhatsApp", title: "17 · WhatsApp funnel: the 'last status' trap", desc: "A Read message was delivered too.",
+    sql: `SELECT COUNT(*)                                                        AS sent,            -- ${fmtN(W_("sent"))}
+       SUM(message_status IN ('Delivered','Read'))                     AS delivered,       -- ${fmtN(W_("delivered"))}
+       SUM(message_status = 'Delivered')                               AS status_delivered_only, -- ${fmtN(W_("delivered_status_only"))} ✗
+       ROUND(100 * SUM(message_status IN ('Delivered','Read')) / COUNT(*), 2) AS delivery_rate,   -- ${W_("delivery_rate")}
+       ROUND(100 * SUM(message_status = 'Read') / SUM(message_status IN ('Delivered','Read')), 2) AS read_rate,   -- ${W_("read_rate")}
+       ROUND(100 * SUM(button_clicked = 'Yes') / SUM(message_status IN ('Delivered','Read')), 2) AS click_rate,  -- ${W_("click_rate")}
+       ROUND(100 * SUM(opted_out = 'Yes') / SUM(message_status IN ('Delivered','Read')), 3)     AS optout_rate, -- ${W_("optout_rate")}
+       ROUND(SUM(cost_inr) / SUM(message_status IN ('Delivered','Read')), 2)                     AS cost_per_delivered -- ${W_("cost_per_delivered")}
+FROM whatsapp_messages;
+
+SELECT failure_reason, COUNT(*) FROM whatsapp_messages WHERE message_status = 'Failed' GROUP BY 1 ORDER BY 2 DESC;` },
+  { cat: "WhatsApp", title: "18 · WhatsApp ROI per campaign", desc: "Revenue from Delivered orders whose last click was a WhatsApp button.",
+    sql: `SELECT c.campaign_name, c.actual_spend_inr,
+       COALESCE(SUM(o.net_revenue_inr), 0) AS revenue,
+       ROUND(100 * (COALESCE(SUM(o.net_revenue_inr), 0) - c.actual_spend_inr) / c.actual_spend_inr) AS roi_pct
+FROM campaigns c
+LEFT JOIN orders o ON o.attributed_campaign_id = c.campaign_id
+                  AND o.attributed_channel = 'WhatsApp' AND o.order_status = 'Delivered'
+WHERE c.channel = 'WhatsApp'
+GROUP BY c.campaign_id, c.campaign_name, c.actual_spend_inr ORDER BY roi_pct DESC;
+-- total: spend ${fmtN(W_("spend"))} · revenue ${fmtN(W_("revenue"))} · ROI ${W_("roi")}%` },
+  { cat: "Channel", title: "19 · Channel comparison (with the attribution source labelled)", desc: "One table, two measurement systems: say so on the visual.",
+    sql: `SELECT c.channel, SUM(c.actual_spend_inr) AS spend,
+       CASE WHEN c.channel IN ('Email','WhatsApp')
+            THEN (SELECT SUM(o.net_revenue_inr) FROM orders o
+                  WHERE o.attributed_channel = c.channel AND o.order_status = 'Delivered')
+            ELSE (SELECT SUM(s.purchase_value_inr) FROM social_ads_daily s WHERE s.platform = c.channel) END AS revenue,
+       CASE WHEN c.channel IN ('Email','WhatsApp') THEN 'Orders: last click 72h' ELSE 'Meta: platform-reported' END AS source
+FROM campaigns c GROUP BY c.channel;
+-- ${Object.entries(A.channels || {}).map(([k, v]) => k + " ROAS " + v.roas).join(" · ")}` },
+  { cat: "Channel", title: "20 · Gross profit and margin from orders", desc: "Revenue is not profit: subtract product cost.",
+    sql: `SELECT product_category,
+       ROUND(SUM(net_revenue_inr)) AS revenue,
+       ROUND(SUM(net_revenue_inr - product_cost_inr)) AS gross_profit,
+       ROUND(100 * SUM(net_revenue_inr - product_cost_inr) / SUM(net_revenue_inr), 1) AS margin_pct
+FROM orders WHERE order_status = 'Delivered'
+GROUP BY product_category ORDER BY margin_pct DESC;   -- overall ${A.gross_margin_pct}%` },
+  { cat: "Data quality", title: "21 · List hygiene checks", desc: M_SQL_BLOCKS[4].desc, sql: M_SQL_BLOCKS[4].sql },
+  { cat: "Data quality", title: "22 · Referential integrity across all 9 tables", desc: M_SQL_BLOCKS[1].desc, sql: M_SQL_BLOCKS[1].sql },
+  { cat: "Data quality", title: "23 · Cross-table reconciliations", desc: M_SQL_BLOCKS[3].desc, sql: M_SQL_BLOCKS[3].sql },
 ];
 
 const QA_SQL = M_SQL_BLOCKS.map((b, i) => ({ title: "QA " + (i + 1) + " · " + b.title.replace(/^\d+ · /, ""), desc: b.desc, sql: b.sql }))
   .concat([{ title: "QA 6 · KPI reconciliation query", desc: "One query that returns every P1 email KPI. Paste its output into the reconciliation table below.",
-    sql: "SELECT SUM(recipients)                                   AS sent,             -- 177,032\n       ROUND(100 * SUM(delivered) / SUM(recipients), 2)   AS delivery_rate,    -- 98.32\n       ROUND(100 * SUM(unique_opens) / SUM(delivered), 2) AS unique_open_rate, -- 45.42\n       ROUND(100 * SUM(human_unique_opens) / SUM(delivered), 2) AS human_open, -- 31.58\n       ROUND(100 * SUM(unique_clicks) / SUM(delivered), 2) AS unique_ctr,      -- 6.55\n       ROUND(100 * SUM(unique_clicks) / SUM(unique_opens), 2) AS ctor,         -- 14.43\n       ROUND(100 * SUM(unsubscribes) / SUM(delivered), 3) AS unsub_rate        -- 0.267\nFROM vw_email_performance;\n\nSELECT ROUND(100 * (SUM(attributed_revenue) - SUM(actual_spend_inr)) / SUM(actual_spend_inr), 1) AS roi,  -- 106.9\n       ROUND(SUM(attributed_revenue) / SUM(actual_spend_inr), 2) AS roas                                      -- 2.07\nFROM vw_campaign_roi;" }]);
+    sql: "SELECT SUM(recipients)                                   AS sent,             -- 177,032\n       ROUND(100 * SUM(delivered) / SUM(recipients), 2)   AS delivery_rate,    -- 98.32\n       ROUND(100 * SUM(unique_opens) / SUM(delivered), 2) AS unique_open_rate, -- 45.42\n       ROUND(100 * SUM(human_unique_opens) / SUM(delivered), 2) AS human_open, -- 31.58\n       ROUND(100 * SUM(unique_clicks) / SUM(delivered), 2) AS unique_ctr,      -- 6.55\n       ROUND(100 * SUM(unique_clicks) / SUM(unique_opens), 2) AS ctor,         -- 14.43\n       ROUND(100 * SUM(unsubscribes) / SUM(delivered), 3) AS unsub_rate        -- 0.267\nFROM vw_email_performance;\n\nSELECT ROUND(100 * (SUM(attributed_revenue) - SUM(actual_spend_inr)) / SUM(actual_spend_inr), 1) AS roi,  -- 106.6\n       ROUND(SUM(attributed_revenue) / SUM(actual_spend_inr), 2) AS roas                                      -- 2.07\nFROM vw_campaign_roi;" }]);
 
 const QA_CHECKLIST = [
-  { id: "q1", t: "Row counts match", d: "All 7 tables; Activities 313,895; Web 52,560." },
+  { id: "q1", t: "Row counts match", d: "All 9 tables; Activities 313,895; WhatsApp 73,221; Social 41,736; Web 70,080." },
   { id: "q2", t: "Recipients = Delivered + Bounced", d: `${fmtN(A.sent)} on both sides.` },
   { id: "q3", t: "Unique, not total, opens", d: `${A.unique_open_rate}% unique; ${A.human_open_rate}% human; label which one the card shows.` },
   { id: "q4", t: "Delivery Rate is a %", d: `${A.delivery_rate}%, not ${A.doc_delivery}.` },
   { id: "q5", t: "Web rates are session-weighted", d: `Bounce ${A.bounce_weighted}%, duration ${A.dur_weighted} min.` },
-  { id: "q6", t: "Shares use SUM(Sessions) and ALL()", d: "Source and device shares add to 100% and aren't 16.7% / 33.3%." },
+  { id: "q6", t: "Shares use SUM(Sessions) and ALL()", d: "Source and device shares add to 100% and aren't 12.5% / 33.3%." },
   { id: "q7", t: "Revenue = Delivered orders", d: `${inr(A.attr_rev)} attributed; ROI ${A.roi}%.` },
   { id: "q8", t: "Corrections documented", d: "Each KPI-document formula you changed is listed with the reason." },
+  { id: "q9", t: "WhatsApp delivered = Delivered + Read", d: `${W_("delivery_rate")}% delivery rate, not ${W_("wrong_delivery_rate")}%.` },
+  { id: "q10", t: "Social ratios from sums", d: `CTR ${A.social ? A.social.ctr : ""}%, ER ${A.social ? A.social.er : ""}% computed as SUM ÷ SUM.` },
+  { id: "q11", t: "Meta spend = web ad spend", d: "Matches by day except the 2024-03-12 outage." },
+  { id: "q12", t: "Attribution source labelled", d: "Channel ROAS cards say 'Orders' or 'Meta platform-reported'." },
 ];
 
 /* ---------------- EXCEL ---------------- */
@@ -815,6 +1050,10 @@ const EXCEL_TASKS = [
   ["Avg Activity per Email", "=(COUNTA(Activities!A:A)-1)/(COUNTA(Emails!A:A)-1)", String(A.avg_act_per_email), "Your task"],
   ["Campaign lookup on Emails", "=XLOOKUP([@Campaign_ID], Campaigns[Campaign_ID], Campaigns[Campaign_Type])", "8 types", "Your task"],
   ["Send time band", "=IF(HOUR([@Email_Sent_Date])<12,\"Morning\",IF(HOUR([@Email_Sent_Date])<17,\"Afternoon\",\"Evening\"))", "Morning best", "Your task"],
+  ["Instagram ROAS (Social_Ads_Daily)", "=SUMIFS(Purchase_Value_INR,Platform,\"Instagram\")/SUMIFS(Spend_INR,Platform,\"Instagram\")", P_("Instagram", "roas") + "", "Your task"],
+  ["Social engagement rate", "=(SUM(Likes)+SUM(Comments)+SUM(Shares)+SUM(Saves))/SUM(Impressions)", (A.social ? A.social.er : "") + "%", "Starter ✓"],
+  ["WhatsApp delivery rate", "=COUNTIFS(Message_Status,\"<>Failed\")/COUNTA(Message_ID)", W_("delivery_rate") + "%", "Starter ✓"],
+  ["WhatsApp read rate", "=COUNTIF(Message_Status,\"Read\")/COUNTIFS(Message_Status,\"<>Failed\")", W_("read_rate") + "%", "Starter ✓"],
   ["Session-weighted duration", "=SUMPRODUCT(Sessions,Avg_Session_Duration_Min)/SUM(Sessions)", f2(A.dur_weighted) + " min", "Starter ✓"],
 ];
 const PIVOTS = [
@@ -823,6 +1062,8 @@ const PIVOTS = [
   { n: "03", h: "Sent vs activity timeline", p: "Emails: Rows = Email_Sent_Date grouped by Month & Year, Values = Sum of Recipients; repeat for Activities, then a combo chart." },
   { n: "04", h: "Traffic source share", p: "Web_Engagement · Rows: Traffic_Source · Values: Sum of Sessions, % of column total (not Count!)." },
   { n: "05", h: "Device × region", p: "Rows: Region · Columns: Device_Type · Values: Sum of Sessions and Sum of Conversions; add a calculated field Conversions/Sessions." },
+  { n: "06", h: "Facebook vs Instagram scorecard", p: "Social_Ads_Daily · Rows: Platform · Values: Sum of Spend, Impressions, Link_Clicks, Likes, Comments, Shares, Purchase_Value · add calculated fields CTR, CPC, ROAS." },
+  { n: "07", h: "WhatsApp funnel", p: "WhatsApp_Messages · Rows: Message_Status · Values: Count of Message_ID · then Button_Clicked = Yes as a filter for clicks." },
 ];
 
 /* ---------------- GALLERY ---------------- */
@@ -850,13 +1091,34 @@ function galleryPages() {
         kpis: [{ v: mil(a.sessions), l: "Sessions" }, { v: mil(a.uv_sum), l: "Visitor-days (summed UV)" }, { v: a.bounce_weighted + "%", l: "Bounce rate (weighted)" }, { v: f2(a.dur_weighted) + " min", l: "Avg session (weighted)" }, { v: a.web_cvr + "%", l: "Conversion rate" }, { v: "+" + a.sessions_yoy + "%", l: "Sessions YoY" }],
         bars: [{ title: "Sessions per month (K) — 2024", data: (m.web_month_sessions_k || []).slice(12) }, { title: "Bounce rate by source (%)", data: m.src_bounce || [], suffix: "%" }] },
       build: { tableau: ["SUM([Bounced Sessions])/SUM([Sessions])", "Show the 2024-03-12 gap (don't fill with 0)", "Year-over-year table calc"], powerbi: ["Weighted bounce & duration measures (SUMX)", "SAMEPERIODLASTYEAR for YoY", "Line chart on Dim_Date[Year_Month]"] } },
-    { n: "04", t: "Channel, Device & Region", q: "Where do visitors come from and what converts?", ins: `Organic ${SRCP("Organic Search")[1]}% of sessions; Email converts best; Mobile ${m.device_pct ? m.device_pct[0][1] : 64}% of sessions but lowest CVR; West leads visitors.`, iq: "Why does a row-count source chart show 16.7% everywhere?", aud: "Digital marketing · Growth", keys: ["Source share", "Device share", "CVR", "Region"],
+    { n: "04", t: "Channel, Device & Region", q: "Where do visitors come from and what converts?", ins: `Organic ${SRCP("Organic Search")[1]}% of sessions; Email converts best; Mobile ${m.device_pct ? m.device_pct[0][1] : 64}% of sessions but lowest CVR; West leads visitors.`, iq: "Why does a row-count source chart show 12.5% everywhere?", aud: "Digital marketing · Growth", keys: ["Source share", "Device share", "CVR", "Region"],
       desc: "Drill-through: traffic mix, conversion by source and device, region ranking.",
       mock: { title: "Channel, Device & Region", sub: "Shares by SUM(Sessions)",
-        kpis: [{ v: SRCP("Organic Search")[1] + "%", l: "Organic share" }, { v: (m.src_cvr ? m.src_cvr.find(x => x[0] === "Email")[1] : 0) + "%", l: "Email CVR (best)" }, { v: (m.device_pct ? m.device_pct[0][1] : 0) + "%", l: "Mobile share" }, { v: (m.roas_paid ? m.roas_paid[0][1] : 0) + "", l: "Paid Ads ROAS" }],
+        kpis: [{ v: SRCP("Organic Search")[1] + "%", l: "Organic share" }, { v: (m.src_cvr ? m.src_cvr.find(x => x[0] === "Email")[1] : 0) + "%", l: "Email CVR (best)" }, { v: (m.device_pct ? m.device_pct[0][1] : 0) + "%", l: "Mobile share" }, { v: (m.roas_paid ? m.roas_paid[0][1] : 0) + "", l: (m.roas_paid ? m.roas_paid[0][0] : "") + " ROAS (web)" }],
         donuts: [{ title: "Device share (sessions)", data: m.device_sessions || [] }],
         bars: [{ title: "Session share by source (%)", data: m.src_sessions_pct || [], suffix: "%" }, { title: "Conversion rate by source (%)", data: m.src_cvr || [], suffix: "%" }, { title: "Unique visitors by region (M)", data: m.region_uv_m || [] }] },
       build: { tableau: ["Percent of total table calc on SUM(Sessions)", "Highlight table source × device", "Map of regions"], powerbi: ["Share measure with ALL(Web_Engagement[Traffic_Source])", "Matrix device × source with CVR", "RANKX for regions"] } },
+    { n: "05", t: "Social Media: Facebook vs Instagram", q: "Which platform earns, not just engages?", ins: `FB ROAS ${P_("Facebook", "roas")} vs IG ${P_("Instagram", "roas")}; IG engagement ${P_("Instagram", "er")}% vs FB ${P_("Facebook", "er")}%; ad profit FB ${inrL(P_("Facebook", "profit"))}, IG ${inrL(P_("Instagram", "profit"))}.`, iq: "Why can't you sum Reach across rows?", aud: "Social Media Manager · CMO", keys: ["Ad Spend", "CTR", "Engagement Rate", "ROAS", "Profit %"],
+      desc: "Platform cards side by side (like the Power BI sample): spend, sales, profit, engagement, conversion and ROAS, with likes / comments / shares.",
+      mock: { title: "Social Media Performance", sub: "Social_Ads_Daily · Meta platform-reported",
+        kpis: [{ v: inrL(a.social ? a.social.spend : 0), l: "Ad spend" }, { v: inrL(a.social ? a.social.value : 0), l: "Purchase value" }, { v: inrL(a.social ? a.social.profit : 0), l: "Ad profit (after product cost)" }, { v: (a.social ? a.social.ctr : 0) + "%", l: "Link CTR" }, { v: (a.social ? a.social.er : 0) + "%", l: "Engagement rate" }, { v: String(a.social ? a.social.roas : 0), l: "ROAS" }],
+        donuts: [{ title: "Spend by platform (₹ L)", data: m.soc_platform_spend_l || [] }],
+        bars: [{ title: "ROAS by platform", data: m.soc_platform_roas || [] }, { title: "Engagement rate by platform (%)", data: m.soc_platform_er || [], suffix: "%" }, { title: "ROAS by campaign type", data: m.soc_type_roas || [] }, { title: "CTR by ad format (%)", data: m.soc_format_ctr || [], suffix: "%" }] },
+      build: { tableau: ["Platform as columns of KPI tiles (one sheet per measure)", "Parameter to switch Spend / ROAS / ER", "City and Ad_Format filters"], powerbi: ["Measures as SUM ÷ SUM (CTR, CPC, ER, ROAS)", "Small multiples by Platform", "Slicers: City, Ad_Format, Device, Month — like the sample dashboard"] } },
+    { n: "06", t: "WhatsApp Campaigns", q: "Does WhatsApp pay back?", ins: `${fmtN(W_("sent"))} sent · ${W_("delivery_rate")}% delivered · ${W_("read_rate")}% read · ${W_("click_rate")}% clicked · ROI ${W_("roi")}%.`, iq: "Why is Delivered = Delivered + Read?", aud: "CRM Manager · CMO", keys: ["Delivery", "Read", "Click", "Opt-out", "ROI"],
+      desc: "Funnel from sent to order, failure reasons and ROI per campaign.",
+      mock: { title: "WhatsApp Campaigns", sub: "WhatsApp_Messages + Orders (Attributed_Channel = WhatsApp)",
+        kpis: [{ v: fmtN(W_("sent")), l: "Messages sent" }, { v: W_("delivery_rate") + "%", l: "Delivery rate" }, { v: W_("read_rate") + "%", l: "Read rate" }, { v: W_("click_rate") + "%", l: "Click rate" }, { v: W_("optout_rate") + "%", l: "Opt-out rate" }, { v: W_("roi") + "%", l: "ROI" }],
+        donuts: [{ title: "Final message status", data: m.wa_status || [] }],
+        bars: [{ title: "Funnel", data: m.wa_funnel || [] }, { title: "Click rate by campaign type (%)", data: m.wa_type_click || [], suffix: "%" }, { title: "Failure reasons", data: m.wa_fail || [] }] },
+      build: { tableau: ["Calc: [Is Delivered] = [Message Status] <> 'Failed'", "Funnel bars sorted by stage", "ROI from Orders where Attributed_Channel = WhatsApp"], powerbi: ["WA Delivered measure with IN {\"Delivered\",\"Read\"}", "Funnel visual", "Relationship Orders[Attributed_Message_ID] → WhatsApp_Messages (inactive, USERELATIONSHIP)"] } },
+    { n: "07", t: "Channel Comparison", q: "Which channel deserves the next rupee?", ins: Object.entries(a.channels || {}).map(([k, v]) => `${k} ROAS ${v.roas}`).join(" · ") + " (Meta numbers platform-reported).", iq: "Can you rank Meta ROAS and Orders ROAS on one chart?", aud: "CMO · Finance", keys: ["Spend", "Revenue", "ROAS", "Source"],
+      desc: "Spend, revenue and ROAS for Email, WhatsApp, Facebook and Instagram, each with its measurement source.",
+      mock: { title: "Channel Comparison", sub: "Email & WhatsApp: Orders (last click) · FB & IG: Meta Ads Manager",
+        kpis: [{ v: inrCr(a.total_campaign_spend || 0), l: "Campaign spend (4 channels)" }, { v: inrCr(a.google_ads_spend || 0), l: "Google Ads spend (web)" }, { v: a.gross_margin_pct + "%", l: "Gross margin (orders)" }, { v: W_("roas") + "×", l: "WhatsApp ROAS" }],
+        donuts: [{ title: "Spend by channel (₹ L)", data: m.ch_spend_l || [] }],
+        bars: [{ title: "ROAS by channel", data: m.ch_roas || [] }, { title: "Revenue by channel (₹ L)", data: m.ch_revenue_l || [] }] },
+      build: { tableau: ["Union of two summaries with a 'Source' column", "Colour bars by Source", "Footnote the attribution rules"], powerbi: ["Channel dimension table (4 rows)", "SWITCH measure picking Orders or Social revenue by channel", "Tooltip with the source"] } },
   ];
 }
 
@@ -870,11 +1132,15 @@ function assignments() {
     { id: "a4", tool: "SQL · KPI", track: "kpi", t: "What is the UNIQUE open rate? (two decimals, %)", task: ["COUNT(DISTINCT email_id, customer_id) of Open rows.", "Divide by Delivered."], type: "num", ans: a.unique_open_rate, tol: 0.01, unit: "%", hint: "79,060 unique openers.", sol: "79,060 ÷ 174,058 = 45.42%. Open rows ÷ Delivered would give 69.48%." },
     { id: "a5", tool: "SQL", track: "sql", t: "What share of Open rows are Apple Mail machine opens? (one decimal, %)", task: ["Join opens to the recipient's Delivered row.", "Flag opens < 15 s after delivery.", "Flagged ÷ all Open rows."], type: "num", ans: a.machine_open_share, tol: 0.1, unit: "%", hint: `${fmtN(a.machine_opens)} machine opens.`, sol: `${fmtN(a.machine_opens)} ÷ ${fmtN(a.opens)} = ${a.machine_open_share}%.` },
     { id: "a6", tool: "Excel", track: "excel", t: "Using Email_Summary in the starter, what is CTOR? (two decimals, %)", task: ["SUM(Unique_Clicks) ÷ SUM(Unique_Opens)."], type: "num", ans: a.ctor, tol: 0.01, unit: "%", hint: "11,407 ÷ 79,060.", sol: "=SUM(Unique_Clicks)/SUM(Unique_Opens) → 14.43%" },
-    { id: "a7", tool: "Power BI", track: "powerbi", t: "Write Email ROI %. What does it return? (one decimal)", task: ["Attributed revenue on Delivered orders.", "Minus Actual_Spend_INR, divided by spend."], type: "num", ans: a.roi, tol: 0.1, unit: "%", hint: "₹39,85,458 revenue, ₹19,26,200 spend.", sol: "Email ROI % = DIVIDE([Attributed Revenue] - [Campaign Spend], [Campaign Spend])   -- 106.9%" },
+    { id: "a7", tool: "Power BI", track: "powerbi", t: "Write Email ROI %. What does it return? (one decimal)", task: ["Attributed revenue on Delivered orders.", "Minus Actual_Spend_INR, divided by spend."], type: "num", ans: a.roi, tol: 0.1, unit: "%", hint: "₹39,79,280 revenue, ₹19,26,200 spend.", sol: "Email ROI % = DIVIDE([Attributed Revenue] - [Campaign Spend], [Campaign Spend])   -- 106.6%" },
     { id: "a8", tool: "Tableau", track: "tableau", t: "Build ROI by campaign type. Which type has the LOWEST ROI?", task: ["vw_campaign_roi by campaign_type.", "(Revenue − spend) ÷ spend.", "Sort ascending."], type: "select", options: ["Promotional", "Re-engagement", "Newsletter", "Product Launch"], ans: "Re-engagement", hint: "It also has the highest unsubscribe rate.", sol: `Re-engagement: ${Math.round(TT["Re-engagement"] ? TT["Re-engagement"].roi : -49)}% ROI; Promotional is also negative (${Math.round(TT.Promotional ? TT.Promotional.roi : -9)}%).` },
-    { id: "a9", tool: "SQL · Web", track: "sql", t: "What is the session-weighted bounce rate? (two decimals, %)", task: ["SUM(bounced_sessions) ÷ SUM(sessions) × 100."], type: "num", ans: a.bounce_weighted, tol: 0.01, unit: "%", hint: "AVERAGE gives 45.90 — that's the wrong one.", sol: "SELECT ROUND(100*SUM(bounced_sessions)/SUM(sessions),2) FROM web_engagement;   -- 49.28" },
-    { id: "a10", tool: "Data Model", track: "model", t: "What share of SESSIONS comes from Organic Search? (one decimal, %)", task: ["Sum sessions by source.", "Divide by all sessions."], type: "num", ans: SRCP("Organic Search")[1], tol: 0.1, unit: "%", hint: "Not 16.7%.", sol: "Organic Search 30.3% of sessions. Counting rows gives 16.7% to every source." },
+    { id: "a9", tool: "SQL · Web", track: "sql", t: "What is the session-weighted bounce rate? (two decimals, %)", task: ["SUM(bounced_sessions) ÷ SUM(sessions) × 100."], type: "num", ans: a.bounce_weighted, tol: 0.01, unit: "%", hint: "AVERAGE gives 44.29 — that's the wrong one.", sol: "SELECT ROUND(100*SUM(bounced_sessions)/SUM(sessions),2) FROM web_engagement;   -- 49.04" },
+    { id: "a10", tool: "Data Model", track: "model", t: "What share of SESSIONS comes from Organic Search? (one decimal, %)", task: ["Sum sessions by source.", "Divide by all sessions."], type: "num", ans: SRCP("Organic Search")[1], tol: 0.1, unit: "%", hint: "Not 12.5%.", sol: "Organic Search 30.6% of sessions. Counting rows gives 12.5% to every source." },
     { id: "a11", tool: "Data Quality", track: "model", t: "How many emails were delivered to customers AFTER they unsubscribed?", task: ["Delivered activities joined to Customers.", "activity_date > unsubscribe_date."], type: "num", ans: a.sends_after_unsub, tol: 0, unit: "emails", hint: "About a hundred.", sol: "104 — the suppression list updates with a lag. A compliance issue to report." },
+    { id: "a13", tool: "Social · SQL", track: "sql", t: "What is Instagram's platform-reported ROAS? (two decimals)", task: ["Social_Ads_Daily where Platform = 'Instagram'.", "SUM(Purchase_Value_INR) ÷ SUM(Spend_INR)."], type: "num", ans: P_("Instagram", "roas"), tol: 0.01, unit: "×", hint: "Lower than Facebook.", sol: `Instagram ROAS = ${P_("Instagram", "roas")}; Facebook = ${P_("Facebook", "roas")}.` },
+    { id: "a14", tool: "WhatsApp · SQL", track: "kpi", t: "What is the WhatsApp delivery rate? (two decimals, %)", task: ["Delivered = status 'Delivered' OR 'Read'.", "Divide by all messages."], type: "num", ans: W_("delivery_rate"), tol: 0.01, unit: "%", hint: "Not 27.59% — read messages were delivered too.", sol: `${fmtN(W_("delivered"))} ÷ ${fmtN(W_("sent"))} = ${W_("delivery_rate")}%.` },
+    { id: "a15", tool: "Power BI", track: "powerbi", t: "Which social platform has the higher ENGAGEMENT rate?", task: ["(Likes+Comments+Shares+Saves) ÷ Impressions by Platform."], type: "select", options: ["Facebook", "Instagram"], ans: "Instagram", hint: "Saves are big on one platform.", sol: `Instagram ${P_("Instagram", "er")}% vs Facebook ${P_("Facebook", "er")}% — but Facebook has the higher ROAS.` },
+    { id: "a16", tool: "Tableau", track: "tableau", t: "Which social campaign TYPE has the highest ROAS?", task: ["Join Social_Ads_Daily to Campaigns.", "ROAS by Campaign_Type."], type: "select", options: ["Retargeting", "Acquisition", "Festive", "Awareness"], ans: "Retargeting", hint: "People who already visited.", sol: `Retargeting ${MD.soc_type_roas ? MD.soc_type_roas[0][1] : ""}× — ask how much of it is incremental.` },
     { id: "a12", tool: "Business Analysis", track: "career", t: "Which device has the HIGHEST website conversion rate?", task: ["Conversions ÷ sessions by Device_Type."], type: "select", options: ["Mobile", "Desktop", "Tablet"], ans: "Desktop", hint: "Not the one with the most sessions.", sol: `Desktop ${MD.device_cvr ? MD.device_cvr[0][1] : 2.32}% vs Mobile ${MD.device_cvr ? MD.device_cvr[1][1] : 1.51}% and Tablet ${MD.device_cvr ? MD.device_cvr[2][1] : 1.88}%.` },
   ];
 }
@@ -887,19 +1153,25 @@ const LAB = [
     exp: ["Delivered recipients ÷ number of emails = recipients per email.", "A rate needs Delivered ÷ Recipients = 98.32%.", "Keep 369.5 only as 'avg delivered per send' if useful."] },
   { t: "Cut Promotional?", scn: "Finance wants to stop all Promotional campaigns because ROI is −9%.", opts: [["Stop them all", "weak"], ["Split by campaign, discount and segment, and test with a holdout", "best"], ["Double the budget", "weak"], ["Ignore finance", "weak"]],
     exp: ["Last-click attribution can under-credit broad campaigns.", "Some Promotional campaigns may be positive; find the losers.", "A holdout shows the true incremental revenue."] },
-  { t: "Every source = 16.7%", scn: "Your traffic-source donut has six equal slices.", opts: [["Ship it", "weak"], ["Change the measure from row count to SUM(Sessions)", "best"], ["Use a bar chart", "weak"], ["Filter to one year", "weak"]],
-    exp: ["Each source has one row per day × device × region.", "COUNT of rows is identical for every source.", "Sum Sessions: Organic 30.3%, Paid 23.0% … Referral 5.2%."] },
+  { t: "Every source = 12.5%", scn: "Your traffic-source donut has eight equal slices.", opts: [["Ship it", "weak"], ["Change the measure from row count to SUM(Sessions)", "best"], ["Use a bar chart", "weak"], ["Filter to one year", "weak"]],
+    exp: ["Each source has one row per day × device × region.", "COUNT of rows is identical for every source.", "Sum Sessions: Organic 30.6%, Google Ads 23.2% … WhatsApp 1.7%."] },
   { t: "Visitors don't match GA", scn: "Google Analytics reports far fewer users than your card's 12.6M 'unique visitors'.", opts: [["Trust your number", "weak"], ["Explain summed UV = visitor-days and reconcile on sessions", "best"], ["Divide by 4", "weak"], ["Delete the card", "ok"]],
     exp: ["GA de-duplicates people across the period.", "Daily UV summed counts a person every day they visit.", "Rename the card or use Sessions as the volume KPI."] },
   { t: "Unsubscribes rising", scn: "Unsubscribe rate went from 0.19% to 0.32% year over year.", opts: [["Ignore, still low", "weak"], ["Check send frequency per subscriber and which campaign types drive it", "best"], ["Remove the unsubscribe link", "weak"], ["Send more Re-engagement", "weak"]],
     exp: ["Volume grew 34% in 2024.", "Re-engagement (0.86%) and Promotional (0.37%) drive unsubscribes.", "Introduce a frequency cap and engagement-based targeting."] },
-  { t: "Revenue too high", scn: "Your ROI card says 145%; the reviewer's SQL says 106.9%.", opts: [["Use yours", "weak"], ["Check if returned/cancelled orders are included", "best"], ["Average the two", "weak"], ["Refresh", "ok"]],
-    exp: ["All attributed orders = ₹47.3 L.", "Delivered only = ₹39.9 L.", "Returns and cancellations aren't revenue."] },
+  { t: "Revenue too high", scn: "Your ROI card says 145%; the reviewer's SQL says 106.6%.", opts: [["Use yours", "weak"], ["Check if returned/cancelled orders are included", "best"], ["Average the two", "weak"], ["Refresh", "ok"]],
+    exp: ["All email-attributed orders = ₹47.2 L.", "Delivered only = ₹39.8 L.", "Returns and cancellations aren't revenue."] },
   { t: "Missing day", scn: "Your daily sessions line drops to zero on 12-Mar-2024.", opts: [["Leave it", "weak"], ["Confirm it's a tracking gap, show it as a gap and footnote it", "best"], ["Copy the previous day", "ok"], ["Delete March", "weak"]],
     exp: ["No rows exist for that date.", "A zero suggests the site was down: misleading.", "Show a gap and note the outage; don't silently impute."] },
   { t: "Best campaign?", scn: "The CMO asks: 'Which campaign was the best?'", opts: [["The one with most activities", "weak"], ["Ask 'best by what?' and show CTR, conversion and ROI", "best"], ["The newest one", "weak"], ["Refuse", "weak"]],
     exp: ["Activity volume mostly reflects list size and how long it ran.", "Gold Member Early Access leads CTR; Cart Abandonment leads ROI.", "Agree one metric for future rankings."] },
-  { t: "Mobile conversion", scn: "Product asks whether to invest in the app or the desktop site.", opts: [["Desktop, it converts best", "ok"], ["Size the gain: mobile is 64% of sessions at 1.51% vs 2.32%", "best"], ["Neither", "weak"], ["Tablet", "weak"]],
+  { t: "Instagram is our best channel", scn: "The social team shows Instagram has 3× Facebook's engagement and asks for double budget.", opts: [["Approve", "weak"], ["Compare ROAS and ad profit by platform first", "best"], ["Cut Instagram", "weak"], ["Ask for more likes", "weak"]],
+    exp: [`Instagram ER ${P_("Instagram", "er")}% vs Facebook ${P_("Facebook", "er")}%.`, `But ROAS ${P_("Instagram", "roas")} vs ${P_("Facebook", "roas")} and Instagram's ad profit is negative after product cost.`, "Fund by profit per rupee; keep Instagram for launches and reach."] },
+  { t: "WhatsApp delivery 28%?", scn: "A dashboard card shows WhatsApp delivery rate 27.6%.", opts: [["Escalate to Meta", "weak"], ["Check how 'delivered' is counted from Message_Status", "best"], ["Stop WhatsApp", "weak"], ["Re-send all", "weak"]],
+    exp: ["Message_Status stores the last state.", "Read messages were delivered: Delivered = Delivered + Read.", `True delivery rate: ${W_("delivery_rate")}%.`] },
+  { t: "Revenue double count", scn: "Finance adds Meta's purchase value to Orders revenue for the board pack.", opts: [["Fine, it's all revenue", "weak"], ["Explain the two attribution sources and keep them separate", "best"], ["Use only Meta", "weak"], ["Average them", "weak"]],
+    exp: ["Meta counts click- and view-through purchases with its own window.", "Orders credit Email/WhatsApp last clicks within 72 h.", "They overlap: report each with its source and compare trends."] },
+  { t: "Mobile conversion", scn: "Product asks whether to invest in the app or the desktop site.", opts: [["Desktop, it converts best", "ok"], ["Size the gain: mobile is 69% of sessions at 1.51% vs 2.55%", "best"], ["Neither", "weak"], ["Tablet", "weak"]],
     exp: ["Desktop converts better, but mobile has twice the traffic.", "Closing even part of the mobile gap gains more conversions.", "Recommend mobile checkout improvements and measure."] },
 ];
 
@@ -914,15 +1186,15 @@ const WEAK_STRONG = M_WEAK_STRONG;
 /* ---------------- PITCH ---------------- */
 const PITCH_FLOW = [
   { t: "Business Problem", d: "Engagement over-reported, spend not linked to revenue.", s: "~10 s", key: ["problem", "spend", "trust", "report"] },
-  { t: "Data Sources", d: "61 campaigns, 471 sends, 313,895 email events, 12,000 subscribers, web traffic.", s: "~10 s", key: ["313,895", "313895", "campaign", "events"] },
+  { t: "Data Sources", d: "103 campaigns across Email, Facebook, Instagram, WhatsApp; 313,895 email events, 73K WhatsApp messages, daily Meta ad results, web traffic.", s: "~10 s", key: ["313,895", "313895", "campaign", "whatsapp"] },
   { t: "Data Cleaning", d: "Repeat & machine opens, unit errors, summed visitors, list hygiene.", s: "~10 s", key: ["clean", "machine", "repeat", "quality"] },
   { t: "Data Model", d: "Star schema around Dim_Date; Campaign_ID and Email_ID keys.", s: "~10 s", key: ["model", "star", "key", "dim_date"] },
   { t: "KPIs", d: "15 KPI-document KPIs corrected + ROI, ROAS, CTOR.", s: "~10 s", key: ["kpi", "open rate", "ctr", "roi"] },
   { t: "Dashboard", d: "Email and Web dashboards in Tableau and Power BI, SQL-reconciled.", s: "~10 s", key: ["dashboard", "tableau", "power bi"] },
-  { t: "Insights", d: `Human open ${A.human_open_rate}%, ROI ${A.roi}%, Cart Abandonment best, mobile converts less.`, s: "~15 s", key: ["insight", "31", "roi", "cart"] },
+  { t: "Insights", d: `Human open ${A.human_open_rate}%, email ROI ${A.roi}%, FB ROAS ${P_("Facebook", "roas")} vs IG ${P_("Instagram", "roas")}, WhatsApp ROI ${W_("roi")}%.`, s: "~15 s", key: ["insight", "31", "roi", "cart"] },
   { t: "Business Impact", d: "Shift budget to triggered flows, frequency cap, fix suppression, mobile checkout.", s: "~15 s", key: ["recommend", "impact", "budget", "suppress"] },
 ];
-const ELEVATOR_PITCH = `AXon Retail's marketing team was reporting a ${Math.round(A.total_open_rate)}% email open rate and had no link between campaign spend and revenue. I built a marketing analytics solution on two years of data: 61 campaigns, 471 email sends, ${fmtN(A.activities)} recipient-level email events, 12,000 subscribers, their orders and ${mil(A.sessions)} website sessions. I loaded it into MySQL, built an email mart view and a campaign ROI view, and created Email Campaign and Web Engagement dashboards in Tableau and Power BI, reconciled to SQL. Along the way I corrected the KPI brief: delivery rate was a count, not a rate, open rate counted repeat and Apple Mail machine opens, and web rates were averaged instead of weighted. The real human open rate is ${A.human_open_rate}%, email ROI is ${A.roi}%, Cart Abandonment and Loyalty campaigns pay back many times over while Re-engagement and Promotional lose money, and mobile brings ${MD.device_pct ? MD.device_pct[0][1] : 64}% of traffic but converts worst. I recommended moving budget to triggered flows, capping send frequency, fixing suppression and improving mobile checkout.`;
+const ELEVATOR_PITCH = `AXon Retail's marketing team was reporting a ${Math.round(A.total_open_rate)}% email open rate and had no link between campaign spend and revenue. I built a marketing analytics solution on two years of data: 61 campaigns, 471 email sends, ${fmtN(A.activities)} recipient-level email events, 12,000 subscribers, their orders and ${mil(A.sessions)} website sessions. I loaded it into MySQL, built an email mart view and a campaign ROI view, and created Email Campaign and Web Engagement dashboards in Tableau and Power BI, reconciled to SQL. Along the way I corrected the KPI brief: delivery rate was a count, not a rate, open rate counted repeat and Apple Mail machine opens, and web rates were averaged instead of weighted. The real human open rate is ${A.human_open_rate}%, email ROI is ${A.roi}%, Cart Abandonment and Loyalty campaigns pay back many times over while Re-engagement and Promotional lose money, and mobile brings ${MD.device_pct ? MD.device_pct[0][1] : 64}% of traffic but converts worst. I then added Facebook, Instagram and WhatsApp: Instagram wins on likes but Facebook returns ${P_("Facebook", "roas")}× vs ${P_("Instagram", "roas")}×, and WhatsApp returns ${W_("roi")}% ROI on a small opted-in base. I recommended moving budget to triggered flows, capping send frequency, fixing suppression and improving mobile checkout.`;
 const PROJECT_FAQ = M_PROJECT_FAQ;
 const RESUME_PROJECT = {
   title: "Email & Web Marketing Analytics — AXon Retail (Capstone)",
@@ -934,10 +1206,11 @@ const RESUME_PROJECT = {
     `Linked spend to last-click revenue: ${A.roi}% email ROI, ROAS ${A.roas}; identified loss-making Re-engagement and Promotional campaigns`,
     "Reconciled all P1 KPIs between SQL, Tableau and Power BI",
     "Flagged post-unsubscribe sends and repeat hard bounces as compliance and deliverability risks",
+    `Compared Facebook, Instagram and WhatsApp: FB ROAS ${P_("Facebook", "roas")} vs IG ${P_("Instagram", "roas")}; WhatsApp ROI ${W_("roi")}%; reconciled Meta spend with web ad spend`,
   ],
 };
 const RESUME_BULLETS = M_RESUME_BULLETS;
-const LINKEDIN_POST = `Just wrapped up my Marketing Analytics capstone 📧📈\n\nThe problem: a ${Math.round(A.total_open_rate)}% open rate nobody could trust, and no link between campaign spend and revenue.\n\nWhat I built:\n📊 A 7-table marketing model (${fmtN(A.activities)} email events, 61 campaigns, ${mil(A.sessions)} web sessions)\n🧮 Corrected KPIs: unique & human open rate, CTR, CTOR, ROI, session-weighted bounce rate\n📈 Email & Web dashboards in Tableau and Power BI, reconciled with SQL\n\nBiggest insight: once repeat opens and Apple Mail's automatic opens are removed, the real open rate is ${A.human_open_rate}%. And Cart Abandonment emails return ${Math.round(TT["Cart Abandonment"] ? TT["Cart Abandonment"].roi : 1786)}% ROI.\n\nThanks to Mahendra Singh for the guidance!\n\n#DataAnalytics #MarketingAnalytics #EmailMarketing #PowerBI #Tableau #SQL`;
+const LINKEDIN_POST = `Just wrapped up my Marketing Analytics capstone 📧📈\n\nThe problem: a ${Math.round(A.total_open_rate)}% open rate nobody could trust, and no link between campaign spend and revenue.\n\nWhat I built:\n📊 A 9-table marketing model (Email, Facebook, Instagram, WhatsApp, web) (${fmtN(A.activities)} email events, 61 campaigns, ${mil(A.sessions)} web sessions)\n🧮 Corrected KPIs: unique & human open rate, CTR, CTOR, ROI, session-weighted bounce rate\n📈 Email & Web dashboards in Tableau and Power BI, reconciled with SQL\n\nBiggest insight: once repeat opens and Apple Mail's automatic opens are removed, the real open rate is ${A.human_open_rate}%. And Cart Abandonment emails return ${Math.round(TT["Cart Abandonment"] ? TT["Cart Abandonment"].roi : 1786)}% ROI.\n\nThanks to Mahendra Singh for the guidance!\n\n#DataAnalytics #MarketingAnalytics #EmailMarketing #PowerBI #Tableau #SQL`;
 const PORTFOLIO = [
   { n: "01", h: "Publish to Tableau Public", p: "Upload the .twbx with KPI definitions in tooltips, including how open rate is counted." },
   { n: "02", h: "Record a 2-minute walkthrough", p: "Screen-record the dashboard while giving your 90-second pitch." },
@@ -961,8 +1234,11 @@ const INTENT_RULES = [
   { re: /roas|\broi\b/i, title: "What is ROAS and how is it different from ROI?" },
   { re: /369|delivery rate/i, title: "The KPI document's Delivery Rate is not a rate" },
   { re: /unique visitor|sum.*visitor/i, title: "Don't sum Unique_Visitors" },
+  { re: /instagram|facebook|meta/i, title: "Facebook vs Instagram: which platform performs better here?" },
+  { re: /whatsapp/i, title: "How do you calculate the WhatsApp delivery rate from this table?" },
+  { re: /reach|frequency|impression/i, title: "What is the difference between impressions, reach and frequency?" },
 ];
-const CHAT_POPULAR = ["What is CTOR?", "Why is open rate 69%?", "ROI vs ROAS", "Apple Mail machine opens", "Give me a scenario question"];
+const CHAT_POPULAR = ["Facebook vs Instagram?", "WhatsApp delivery rate", "What is CTOR?", "Why is open rate 69%?", "ROI vs ROAS", "Apple Mail machine opens", "Give me a scenario question"];
 const QUICK_REPLY_POOL = ["What is CTOR?", "Why is open rate 69%?", "ROI vs ROAS", "Apple Mail machine opens", "Why not average bounce rate?", "Delivery rate 369?", "Give me a scenario question"];
 /* ============================================================
    References, sample images and 12 common marketing dashboards.
@@ -976,20 +1252,14 @@ const SRC = {
 const QA_REFERENCES = Object.values(SRC);
 
 const SAMPLE_IMAGE_DASHBOARDS = [
+  { img: "assets/sample-social-campaign.jpg", t: "Marketing Campaign — Channel Performance", by: "Power BI reference dashboard (illustrative values)",
+    does: "A social campaign page: KPI strip with sparklines vs the previous 30 days (Ad Spend, Total Sales, Total Profit, Conversion Rate, Engagement Rate, ROAS), then one card per platform with profit %, ad spend, sales, engagement, conversion, ROAS, likes, shares and comments. Slicers for city, ad type, device and month, plus a second page for monthly traffic.",
+    kpis: "Ad spend, sales, profit, profit %, conversion rate, engagement rate, ROAS, likes, shares, comments", visuals: "KPI cards with sparklines, platform cards, slicer bar, page navigator buttons",
+    proxima: "Build exactly this on Social_Ads_Daily: Facebook and Instagram cards (Pinterest isn't in AXon's data — use a WhatsApp card from WhatsApp_Messages instead). City, Ad_Format, Device_Type and Dim_Date[Month_Name] are the slicers; profit = Purchase_Gross_Margin_INR − Spend_INR." },
   { img: "assets/dashboard-sample.png", t: "AXon Email Campaign Performance", by: "Built from this project's dataset (real answer-key values)",
     does: "One page with the email funnel KPIs, monthly send volume, ROI by campaign type, activity breakdown, the Apple Mail open inflation and web traffic by source.",
     kpis: "Emails sent, Delivery rate, Unique & Human open rate, Unique CTR, Email ROI", visuals: "KPI cards, monthly bars, diverging ROI bars, donut, grouped bars",
     proxima: "Your Email Campaign Overview should reproduce these numbers exactly." },
-  { img: "assets/hero-mockup.jpg", t: "Marketing Analytics Concept Dashboard", by: "Concept mockup (illustrative values, hospitality example)",
-    does: "Spend, visitors, attributed bookings and ROI cards with trend sparklines, booking sources donut, revenue trend, top channels, traffic overview, a conversion funnel and revenue by campaign.",
-    kpis: "Marketing spend, website visitors, attributed conversions, ROI", visuals: "KPI cards with sparklines, donut, combo chart, funnel, bars",
-    proxima: "Great layout for a CMO page: swap in AXon's spend, sessions, attributed orders and ROI, and add a send → open → click → order funnel." },
-  { img: "assets/dashboard-monitor.jpg", t: "Generic Admin Dashboard", by: "Project PPT reference image",
-    does: "A classic layout: KPI tiles on top, a donut and a bar chart in the middle and a trend area chart below.",
-    kpis: "—", visuals: "KPI tiles, donut, bars, area trend", proxima: "Use the grid: 4–6 KPI cards, 2 breakdowns, 1 trend." },
-  { img: "assets/problem-statement.png", t: "Problem Statement Visual", by: "Project brief",
-    does: "Summarises why the project exists: over-reported engagement, unmeasured ROI, mis-aggregated web KPIs, list hygiene and silos.",
-    kpis: "—", visuals: "Infographic", proxima: "Use it on the Summary slide." },
 ];
 
 const VIDI_DASHBOARDS = [
@@ -1007,8 +1277,16 @@ const VIDI_DASHBOARDS = [
     build: ["Session-weighted rates", "Mark the 2024-03-12 gap", "SAMEPERIODLASTYEAR for YoY"], proxima: `${mil(A.sessions)} sessions, +${A.sessions_yoy}% YoY, bounce ${A.bounce_weighted}%.`, page: "03 Web Engagement Overview" },
   { name: "Channel / Traffic Source Mix", tool: "Power BI / Tableau", tag: "Which channels bring buyers?", context: "Channel budget planning.",
     what: "Sessions, bounce, conversion, revenue and ad spend by source.", question: "Which channel deserves the next rupee?", who: "Performance marketing",
-    kpis: ["Session share", "CVR by source", "Bounce by source", "Paid ROAS"], visuals: ["Share bars", "CVR vs bounce scatter", "ROAS cards"], filters: "Date, device",
-    build: ["SUM(Sessions) with ALL() for share", "Ad spend only on paid sources", "Never count rows"], proxima: `Organic ${SRCP("Organic Search")[1]}% of sessions; Email best CVR; Social worst.`, page: "04 Channel, Device & Region" },
+    kpis: ["Session share", "CVR by source", "Bounce by source", "Paid ROAS (Google, Facebook, Instagram)"], visuals: ["Share bars", "CVR vs bounce scatter", "ROAS cards"], filters: "Date, device",
+    build: ["SUM(Sessions) with ALL() for share", "Ad spend only on paid sources", "Never count rows"], proxima: `Organic ${SRCP("Organic Search")[1]}% of sessions; Email best CVR; Instagram worst.`, page: "04 Channel, Device & Region" },
+  { name: "Social Media Ads (Facebook & Instagram)", tool: "Power BI / Tableau", tag: "Which ads earn, not just engage?", context: "Weekly social / performance marketing review.",
+    what: "Spend, impressions, reach, CTR, CPC, CPM, engagement, purchases, ROAS and profit by platform, campaign, ad format, city and device.", question: "Where should the next rupee of Meta budget go?", who: "Social media manager, performance marketing, CMO",
+    kpis: ["Ad Spend", "CTR", "CPC", "Engagement Rate", "ROAS", "Ad Profit %"], visuals: ["Platform KPI cards with sparklines", "ROAS by campaign type", "Format comparison", "City matrix"], filters: "Month, platform, city, ad format, device",
+    build: ["Social_Ads_Daily → Campaigns, Dim_Date", "Ratios as SUM ÷ SUM; never sum Reach", "Profit = margin − spend; label 'platform-reported'"], proxima: `FB ROAS ${P_("Facebook", "roas")}, IG ${P_("Instagram", "roas")}; retargeting ${MD.soc_type_roas ? MD.soc_type_roas[0][1] : ""}×; ${A.soc_campaigns_below_1 || 0} of ${A.soc_campaigns || 28} social campaigns under 1×.`, page: "05 Social Media" },
+  { name: "WhatsApp Marketing", tool: "Power BI", tag: "Is WhatsApp worth scaling?", context: "CRM team, after every broadcast.",
+    what: "Sent → delivered → read → clicked → ordered funnel, failure reasons, opt-outs, cost and ROI per campaign and template.", question: "Which broadcasts work and are we annoying people?", who: "CRM manager, compliance",
+    kpis: ["Delivery Rate", "Read Rate", "Click Rate", "Opt-out Rate", "Cost per delivered", "ROI"], visuals: ["Funnel", "Failure reasons bar", "ROI by campaign", "Opt-out trend"], filters: "Campaign, template, month",
+    build: ["Delivered = Delivered + Read", "Orders with Attributed_Channel = WhatsApp", "Opt-in base from Customers"], proxima: `${W_("read_rate")}% read, ${W_("click_rate")}% click, ROI ${W_("roi")}%; ${fmtN(W_("opted_in"))} opted-in customers.`, page: "06 WhatsApp Campaigns" },
   { name: "Device & Experience", tool: "Power BI", tag: "Where does the experience break?", context: "Product and UX teams.",
     what: "Sessions, bounce, duration and conversion by device.", question: "Is mobile losing us sales?", who: "Product, UX",
     kpis: ["Device share", "CVR by device", "Bounce by device"], visuals: ["Device donut", "CVR bars", "Trend by device"], filters: "Source, region",
@@ -1032,7 +1310,7 @@ const VIDI_DASHBOARDS = [
   { name: "Sales & Orders", tool: "Power BI / Tableau", tag: "What are subscribers buying?", context: "Merchandising.",
     what: "Net revenue, AOV, returns and cancellations by category and month.", question: "Which categories grow, which get returned?", who: "Category managers",
     kpis: ["Net revenue", "AOV", "Return rate", "Revenue YoY"], visuals: ["Category bars", "Monthly trend", "Return heat table"], filters: "Category, status, channel",
-    build: ["Delivered orders for revenue", "Return rate on all orders", "Category × month matrix"], proxima: `${inrCr(A.net_rev_delivered)} delivered revenue, AOV ${inr(A.aov)}, Apparel returns 12.5%.`, page: "Extension" },
+    build: ["Delivered orders for revenue", "Return rate on all orders", "Category × month matrix"], proxima: `${inrCr(A.net_rev_delivered)} delivered revenue, AOV ${inr(A.aov)}, Apparel returns 12.2%.`, page: "Extension" },
   { name: "Seasonal / Festive Campaigns", tool: "Tableau", tag: "Did Diwali work?", context: "Festive planning.",
     what: "Traffic, opens and revenue in the festive window vs the rest of the year.", question: "How much lift does the festive season give?", who: "CMO, campaign managers",
     kpis: ["Festive vs normal sessions", "Festive campaign ROI"], visuals: ["Annotated trend", "Before/after bars"], filters: "Year",
@@ -1040,7 +1318,7 @@ const VIDI_DASHBOARDS = [
   { name: "Data Quality Monitor", tool: "Power BI", tag: "Can we trust today's numbers?", context: "Every BI project needs one.",
     what: "Row counts, send reconciliation, orphans, missing days and suppression issues per refresh.", question: "Is the data good enough to report today?", who: "BI team",
     kpis: ["Expected vs actual rows", "Recipients − (Delivered + Bounced)", "Missing dates"], visuals: ["Issue cards", "Trend per check"], filters: "Table",
-    build: ["One SQL check per rule (QA page)", "Snapshot counts each refresh", "Alert on change"], proxima: "Recipients 177,032 = Delivered + Bounced; 1 missing web day; 36 activities after Dim_Date.", page: "QA & Reconciliation" },
+    build: ["One SQL check per rule (QA page)", "Snapshot counts each refresh", "Alert on change"], proxima: "Recipients 177,032 = Delivered + Bounced; 1 missing web day; Meta spend = web ad spend by day; 0 orphan keys across 9 tables.", page: "QA & Reconciliation" },
 ];
 /* ============================================================
    Helpers
@@ -1393,7 +1671,7 @@ function renderKpiGrid() {
       <div class="kpi-plain">${esc(k.plain)}</div>
       <div class="formula">${esc(k.formula)}</div>
       ${k.dax ? `<div class="formula dax">${esc(k.dax)}</div>` : ""}
-      <div class="kpi-ans"><span>Answer key (2015): ${esc(k.v25)}</span>${k.wrong ? `<span class="bm">⚠ Wrong: ${esc(k.wrong)}</span>` : ""}</div>
+      <div class="kpi-ans"><span>Answer key: ${esc(k.v25)}</span>${k.wrong ? `<span class="bm">⚠ Wrong: ${esc(k.wrong)}</span>` : ""}</div>
       <div class="meta"><span>${esc(k.table)}</span><span>${esc(k.cat)} · ${esc(k.dir)}</span></div>`;
     wrap.appendChild(c);
   });
@@ -1419,7 +1697,8 @@ function sqlBlockHtml(b, idx, prefix) {
       <div class="hint-text" id="sqlh-${idx}" style="display:none;">${esc(sqlHint(b.sql))}</div>
       <pre id="sqls-${idx}" style="display:none;">${esc(b.sql)}</pre></div>`;
   }
-  return `<div class="card sql-block"><div class="hd"><div><h4>${esc(b.title)}</h4><p>${esc(b.desc)}</p></div><button class="copy-btn" data-copy="${prefix}${idx}">Copy</button></div><pre>${esc(b.sql)}</pre></div>`;
+  const lv = b.level || ({ Setup: "Easy", KPI: "Easy", Web: "Medium", Breakdown: "Medium", Social: "Medium", WhatsApp: "Medium" }[b.cat] || "Advanced");
+  return `<div class="card sql-block"><div class="hd"><div><h4><span class="lvl lvl-${lv.toLowerCase()}">${lv}</span> ${esc(b.title)}</h4><p>${esc(b.desc)}</p></div><button class="copy-btn" data-copy="${prefix}${idx}">Copy</button></div><pre>${esc(b.sql)}</pre></div>`;
 }
 function renderSql() {
   const pills = document.getElementById("sql-pills");
@@ -1449,10 +1728,16 @@ function renderAnalysis() {
     + card("Unique CTR % by campaign type", "Triggered and loyalty emails get clicked", MD.type_ctr, "%")
     + card("Unsubscribe rate % by campaign type", "Re-engagement burns the list", MD.type_unsub, "%")
     + card("Human open rate by send time (%)", "Morning sends open best", MD.open_by_time, "%")
-    + card("Session share by traffic source (%)", "Counting rows would show 16.7% each", MD.src_sessions_pct, "%")
+    + card("Session share by traffic source (%)", "Counting rows would show 12.5% each", MD.src_sessions_pct, "%")
     + card("Conversion rate by source (%)", "Email converts best, Social worst", MD.src_cvr, "%")
-    + card("Conversion rate by device (%)", `Mobile = ${MD.device_pct ? MD.device_pct[0][1] : 64}% of sessions, lowest CVR`, MD.device_cvr, "%");
-  document.getElementById("insights-grid").innerHTML = bq().slice(0, 6).map((k, i) => `
+    + card("Conversion rate by device (%)", `Mobile = ${MD.device_pct ? MD.device_pct[0][1] : 64}% of sessions, lowest CVR`, MD.device_cvr, "%")
+    + card("Social ROAS by platform", "Facebook earns more per rupee", MD.soc_platform_roas)
+    + card("Social engagement rate by platform (%)", "Instagram wins likes and saves", MD.soc_platform_er, "%")
+    + card("Social ad profit after product cost (₹ L)", "Instagram loses money", MD.soc_platform_profit_l)
+    + card("Social ROAS by campaign type", "Retargeting ≫ awareness", MD.soc_type_roas)
+    + card("WhatsApp funnel", `${A.wa ? A.wa.read_rate : ""}% read · ${A.wa ? A.wa.click_rate : ""}% click`, MD.wa_funnel)
+    + card("ROAS by channel", "Email/WhatsApp from Orders · FB/IG from Meta", MD.ch_roas);
+  document.getElementById("insights-grid").innerHTML = bq().map((k, i) => `
     <div class="card insight-card tint-${i % 6}"><div class="insight-label">Insight</div><p class="insight-text">${esc(k.insight)}</p>
     <div class="insight-label rec">Recommendation</div><p class="insight-text">${esc(k.rec)}</p></div>`).join("");
 }
@@ -1489,7 +1774,7 @@ function renderGallery() {
 /* ============================================================
    QA page
    ============================================================ */
-const RECON_KPIS = ["Emails Sent", "Delivered", "Delivery Rate", "Bounce Rate", "Open Rate (Unique)", "Human Open Rate", "Click-Through Rate (Unique CTR)", "Click-to-Open Rate (CTOR)", "Unsubscribe Rate", "Avg Activity per Email", "Campaign Spend", "Attributed Revenue", "Email ROI %", "ROAS", "Sessions", "Avg Bounce Rate", "Avg Session Duration", "Website Conversion Rate"];
+const RECON_KPIS = ["Emails Sent", "Delivered", "Delivery Rate", "Bounce Rate", "Open Rate (Unique)", "Human Open Rate", "Click-Through Rate (Unique CTR)", "Click-to-Open Rate (CTOR)", "Unsubscribe Rate", "Avg Activity per Email", "Campaign Spend", "Attributed Revenue", "Email ROI %", "ROAS", "Sessions", "Avg Bounce Rate", "Avg Session Duration", "Website Conversion Rate", "Ad Spend (Facebook + Instagram)", "Link CTR", "Engagement Rate (Social)", "Social ROAS (platform-reported)", "WhatsApp Delivery Rate", "WhatsApp Read Rate", "WhatsApp ROI %"];
 function renderQA() {
   const wrap = document.getElementById("qa-sql-list");
   wrap.innerHTML = QA_SQL.map((b, i) => sqlBlockHtml(b, i, "q")).join("");
@@ -1791,7 +2076,7 @@ function renderCertificate() {
 const LAST_VIEW_KEY = "axon_mkt_hub_last_view_v1";
 const VIEW_LABELS = {
   progress: "My Progress", problem: "Problem & Business Questions", rules: "Rules & Regulations", dataset: "Dataset", model: "Data Model",
-  datadict: "Data Dictionary", quality: "Data Quality", kpis: "KPI Library", sql: "SQL Lab", excel: "Excel Analysis", analysis: "Business Analysis",
+  datadict: "Data Dictionary", quality: "Data Quality", kpis: "KPI Library", sql: "SQL Lab", editor: "SQL Practice Editor", excel: "Excel Analysis", analysis: "Business Analysis",
   dashboards: "Dashboard Gallery", qa: "QA & Reconciliation", assignments: "Assignments", lab: "Analyst Thinking Lab", interview: "Interview Questions",
   pitch: "90-sec Project Pitch", career: "Resume, LinkedIn & Portfolio", glossary: "Glossary", tips: "Student Tips", learnmore: "Learn More",
 };
@@ -1810,6 +2095,7 @@ function switchView(viewName) {
   if (viewName !== "overview" && VIEW_LABELS[viewName]) lsSet(LAST_VIEW_KEY, JSON.stringify({ view: viewName, ts: Date.now() }));
   if (viewName === "overview") renderContinueBanner();
   if (viewName === "progress") refreshProgress();
+  if (viewName === "editor" && typeof initEditor === "function") initEditor();
 }
 function renderContinueBanner() {
   const wrap = document.getElementById("continue-banner"); if (!wrap) return;
@@ -1988,7 +2274,7 @@ function initThemeToggle() {
   if (!btn) return;
   const apply = (dark) => { document.body.classList.toggle("dark-mode", dark); if (icon) icon.textContent = dark ? "☀️" : "🌙"; if (label) label.textContent = dark ? "Light mode" : "Dark mode"; };
   const saved = lsGet(THEME_KEY);
-  if (saved === "dark") apply(true);
+  apply(saved === "dark");   // light (DailySQL-style) is the default
   btn.addEventListener("click", () => { const d = !document.body.classList.contains("dark-mode"); apply(d); lsSet(THEME_KEY, d ? "dark" : "light"); });
 }
 const STREAK_KEY = "axon_mkt_hub_visit_days_v1";
@@ -2161,4 +2447,252 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("img.zoomable").forEach(img => img.addEventListener("click", () => openModal(`<img class="zoom-img" src="${img.src}" alt="${esc(img.alt)}">`)));
+});
+/* ============================================================
+   Live SQL Practice Editor (in-browser SQLite via sql.js) +
+   "Today's 3 problems" daily challenge (DailySQL-style).
+   ============================================================ */
+const PRACTICE_PROBLEMS = [
+  // ---------------- Easy ----------------
+  { id: "e1", topic: "Aggregations", level: "Easy", mins: 3, t: "Campaigns per channel", task: "How many campaigns does each channel have? Return channel and n, biggest first.", tables: ["campaigns"], hint: "GROUP BY channel, COUNT(*).",
+    sol: "SELECT channel, COUNT(*) AS n\nFROM campaigns\nGROUP BY channel\nORDER BY n DESC, channel;" },
+  { id: "e2", topic: "Aggregations", level: "Easy", mins: 3, t: "Emails sent vs delivered", task: "Return total recipients (sent) and total delivered across all emails.", tables: ["email_performance"], hint: "SUM two columns.",
+    sol: "SELECT SUM(recipients) AS sent, SUM(delivered) AS delivered\nFROM email_performance;" },
+  { id: "e3", topic: "Aggregations", level: "Easy", mins: 4, t: "Email delivery rate", task: "Delivery rate % = delivered ÷ recipients × 100, rounded to 2 decimals.", tables: ["email_performance"], hint: "Multiply by 100.0 so SQLite doesn't do integer division.",
+    sol: "SELECT ROUND(100.0 * SUM(delivered) / SUM(recipients), 2) AS delivery_rate\nFROM email_performance;" },
+  { id: "e4", topic: "Aggregations", level: "Easy", mins: 4, t: "Unique vs total open rate", task: "Return total_open_rate (total_opens ÷ delivered) and unique_open_rate (unique_opens ÷ delivered), both % with 2 decimals.", tables: ["email_performance"], hint: "Two ROUND(100.0 * SUM(..) / SUM(delivered), 2) columns.",
+    sol: "SELECT ROUND(100.0 * SUM(total_opens) / SUM(delivered), 2) AS total_open_rate,\n       ROUND(100.0 * SUM(unique_opens) / SUM(delivered), 2) AS unique_open_rate\nFROM email_performance;" },
+  { id: "e5", topic: "Aggregations", level: "Easy", mins: 3, t: "Social spend by platform", task: "Total ad spend per platform, rounded to whole rupees, biggest first.", tables: ["social_ads_monthly"], hint: "ROUND(SUM(spend_inr)).",
+    sol: "SELECT platform, ROUND(SUM(spend_inr)) AS spend\nFROM social_ads_monthly\nGROUP BY platform\nORDER BY spend DESC;" },
+  { id: "e6", topic: "Aggregations", level: "Easy", mins: 3, t: "WhatsApp funnel totals", task: "Return total sent, delivered, read and clicked WhatsApp messages.", tables: ["whatsapp_summary"], hint: "SUM each column.",
+    sol: "SELECT SUM(sent) AS sent, SUM(delivered) AS delivered, SUM(read) AS read_msgs, SUM(clicked) AS clicked\nFROM whatsapp_summary;" },
+  { id: "e7", topic: "Aggregations", level: "Easy", mins: 3, t: "Sessions by traffic source", task: "Total sessions per traffic_source, biggest first.", tables: ["web_monthly"], hint: "SUM(sessions) — never COUNT rows.",
+    sol: "SELECT traffic_source, SUM(sessions) AS sessions\nFROM web_monthly\nGROUP BY traffic_source\nORDER BY sessions DESC;" },
+  { id: "e8", topic: "Sorting & Limits", level: "Easy", mins: 3, t: "Top 5 campaigns by spend", task: "Campaign name, channel and actual_spend_inr of the 5 biggest spenders.", tables: ["campaigns"], hint: "ORDER BY … DESC LIMIT 5.",
+    sol: "SELECT campaign_name, channel, actual_spend_inr\nFROM campaigns\nORDER BY actual_spend_inr DESC\nLIMIT 5;" },
+  // ---------------- Medium ----------------
+  { id: "m1", topic: "Aggregations", level: "Medium", mins: 7, t: "Human open rate by campaign type", task: "For each campaign_type: human open rate % (human_unique_opens ÷ delivered, 1 decimal), highest first.", tables: ["email_performance"], hint: "GROUP BY campaign_type.",
+    sol: "SELECT campaign_type, ROUND(100.0 * SUM(human_unique_opens) / SUM(delivered), 1) AS human_open_rate\nFROM email_performance\nGROUP BY campaign_type\nORDER BY human_open_rate DESC;" },
+  { id: "m2", topic: "Aggregations", level: "Medium", mins: 8, t: "Facebook vs Instagram scorecard", task: "Per platform: CTR % (2 dp), CPC (2 dp), engagement rate % ((likes+comments+shares+saves) ÷ impressions, 2 dp) and ROAS (2 dp).", tables: ["social_ads_monthly"], hint: "Ratios of sums, not averages of ratios.",
+    sol: "SELECT platform,\n       ROUND(100.0 * SUM(link_clicks) / SUM(impressions), 2) AS ctr,\n       ROUND(SUM(spend_inr) / SUM(link_clicks), 2) AS cpc,\n       ROUND(100.0 * (SUM(likes) + SUM(comments) + SUM(shares) + SUM(saves)) / SUM(impressions), 2) AS engagement_rate,\n       ROUND(SUM(purchase_value_inr) / SUM(spend_inr), 2) AS roas\nFROM social_ads_monthly\nGROUP BY platform\nORDER BY platform;" },
+  { id: "m3", topic: "Joins", level: "Medium", mins: 8, t: "WhatsApp read & click rate by campaign", task: "Campaign name, read rate % and click rate % (both ÷ delivered, 1 dp), best click rate first.", tables: ["whatsapp_summary", "campaigns"], hint: "JOIN on campaign_id, then GROUP BY name.",
+    sol: "SELECT c.campaign_name,\n       ROUND(100.0 * SUM(w.read) / SUM(w.delivered), 1) AS read_rate,\n       ROUND(100.0 * SUM(w.clicked) / SUM(w.delivered), 1) AS click_rate\nFROM whatsapp_summary w JOIN campaigns c ON c.campaign_id = w.campaign_id\nGROUP BY c.campaign_name\nORDER BY click_rate DESC, c.campaign_name;" },
+  { id: "m4", topic: "Aggregations", level: "Medium", mins: 6, t: "Weighted bounce rate by device", task: "Per device_type: bounce rate % = bounced_sessions ÷ sessions (2 dp). Order by device_type.", tables: ["web_monthly"], hint: "SUM ÷ SUM, not AVG.",
+    sol: "SELECT device_type, ROUND(100.0 * SUM(bounced_sessions) / SUM(sessions), 2) AS bounce_rate\nFROM web_monthly\nGROUP BY device_type\nORDER BY device_type;" },
+  { id: "m5", topic: "Joins", level: "Medium", mins: 9, t: "Email ROI by campaign type", task: "For Email campaigns: campaign_type, spend, revenue (from campaign_revenue, 0 if none) and ROI % (0 dp), best first.", tables: ["campaigns", "campaign_revenue"], hint: "LEFT JOIN so campaigns with no orders still count; COALESCE revenue.",
+    sol: "SELECT c.campaign_type,\n       SUM(c.actual_spend_inr) AS spend,\n       SUM(COALESCE(r.attributed_revenue_inr, 0)) AS revenue,\n       ROUND(100.0 * (SUM(COALESCE(r.attributed_revenue_inr, 0)) - SUM(c.actual_spend_inr)) / SUM(c.actual_spend_inr)) AS roi_pct\nFROM campaigns c LEFT JOIN campaign_revenue r ON r.campaign_id = c.campaign_id\nWHERE c.channel = 'Email'\nGROUP BY c.campaign_type\nORDER BY roi_pct DESC;" },
+  { id: "m6", topic: "Aggregations", level: "Medium", mins: 6, t: "Engagement rate by ad format", task: "Per ad_format: engagement rate % (2 dp), highest first.", tables: ["social_ads_monthly"], hint: "(likes+comments+shares+saves) ÷ impressions.",
+    sol: "SELECT ad_format,\n       ROUND(100.0 * (SUM(likes) + SUM(comments) + SUM(shares) + SUM(saves)) / SUM(impressions), 2) AS engagement_rate\nFROM social_ads_monthly\nGROUP BY ad_format\nORDER BY engagement_rate DESC;" },
+  { id: "m7", topic: "Window Functions", level: "Medium", mins: 7, t: "Traffic share with a window function", task: "traffic_source, sessions and share % of all sessions (1 dp) using SUM() OVER ().", tables: ["web_monthly"], hint: "SUM(SUM(sessions)) OVER ().",
+    sol: "SELECT traffic_source, SUM(sessions) AS sessions,\n       ROUND(100.0 * SUM(sessions) / SUM(SUM(sessions)) OVER (), 1) AS share_pct\nFROM web_monthly\nGROUP BY traffic_source\nORDER BY sessions DESC;" },
+  { id: "m8", topic: "Window Functions", level: "Medium", mins: 9, t: "Month-over-month sessions (2024)", task: "For each 2024 month: sessions and % change vs the previous month (1 dp; NULL for January).", tables: ["web_monthly"], hint: "LAG(sessions) OVER (ORDER BY year_month) on a monthly subquery.",
+    sol: "WITH m AS (\n  SELECT year_month, SUM(sessions) AS sessions FROM web_monthly\n  WHERE year_month LIKE '2024-%' GROUP BY year_month\n)\nSELECT year_month, sessions,\n       ROUND(100.0 * (sessions - LAG(sessions) OVER (ORDER BY year_month)) / LAG(sessions) OVER (ORDER BY year_month), 1) AS mom_pct\nFROM m ORDER BY year_month;" },
+  // ---------------- Advanced ----------------
+  { id: "a1", topic: "Window Functions", level: "Advanced", mins: 12, t: "Top 3 social campaigns per platform", task: "Rank social campaigns by ROAS within each platform; return platform, campaign_name, roas (2 dp) and rank for the top 3 of each.", tables: ["social_ads_monthly", "campaigns"], hint: "RANK() OVER (PARTITION BY platform ORDER BY roas DESC) in a CTE.",
+    sol: "WITH r AS (\n  SELECT s.platform, c.campaign_name,\n         ROUND(SUM(s.purchase_value_inr) / SUM(s.spend_inr), 2) AS roas\n  FROM social_ads_monthly s JOIN campaigns c ON c.campaign_id = s.campaign_id\n  GROUP BY s.platform, c.campaign_name\n), k AS (\n  SELECT *, RANK() OVER (PARTITION BY platform ORDER BY roas DESC) AS rnk FROM r\n)\nSELECT platform, campaign_name, roas, rnk FROM k WHERE rnk <= 3\nORDER BY platform, rnk;" },
+  { id: "a2", topic: "CTEs & Unions", level: "Advanced", mins: 14, t: "Channel comparison in one query", task: "One row per channel (Email, WhatsApp, Facebook, Instagram): spend, revenue and ROAS (2 dp). Email/WhatsApp revenue from campaign_revenue, Facebook/Instagram from social_ads_monthly.", tables: ["campaigns", "campaign_revenue", "social_ads_monthly"], hint: "Spend per channel from campaigns; revenue from a UNION ALL of the two sources.",
+    sol: "WITH spend AS (\n  SELECT channel, SUM(actual_spend_inr) AS spend FROM campaigns GROUP BY channel\n), rev AS (\n  SELECT channel, SUM(attributed_revenue_inr) AS revenue FROM campaign_revenue GROUP BY channel\n  UNION ALL\n  SELECT platform, SUM(purchase_value_inr) FROM social_ads_monthly GROUP BY platform\n)\nSELECT s.channel, s.spend, r.revenue, ROUND(1.0 * r.revenue / s.spend, 2) AS roas\nFROM spend s JOIN rev r ON r.channel = s.channel\nORDER BY roas DESC;" },
+  { id: "a3", topic: "Window Functions", level: "Advanced", mins: 10, t: "Running total of 2024 social spend", task: "For each 2024 month: monthly social spend (0 dp) and cumulative spend (0 dp).", tables: ["social_ads_monthly"], hint: "SUM(spend) OVER (ORDER BY year_month).",
+    sol: "WITH m AS (\n  SELECT year_month, SUM(spend_inr) AS spend FROM social_ads_monthly\n  WHERE year_month LIKE '2024-%' GROUP BY year_month\n)\nSELECT year_month, ROUND(spend) AS spend,\n       ROUND(SUM(spend) OVER (ORDER BY year_month)) AS cumulative_spend\nFROM m ORDER BY year_month;" },
+  { id: "a4", topic: "Joins", level: "Advanced", mins: 10, t: "Loss-making campaigns by channel", task: "For Email and WhatsApp: how many campaigns have negative ROI (revenue < spend, revenue 0 when no orders)?", tables: ["campaigns", "campaign_revenue"], hint: "LEFT JOIN + COALESCE, then SUM(CASE WHEN …).",
+    sol: "SELECT c.channel,\n       SUM(CASE WHEN COALESCE(r.attributed_revenue_inr, 0) < c.actual_spend_inr THEN 1 ELSE 0 END) AS negative_roi,\n       COUNT(*) AS campaigns\nFROM campaigns c LEFT JOIN campaign_revenue r ON r.campaign_id = c.campaign_id\nWHERE c.channel IN ('Email', 'WhatsApp')\nGROUP BY c.channel ORDER BY c.channel;" },
+  { id: "a5", topic: "Aggregations", level: "Advanced", mins: 8, t: "Gross margin by category", task: "Delivered orders only: product_category, revenue (0 dp), gross_profit (0 dp) and margin % (1 dp), best margin first.", tables: ["orders_monthly"], hint: "Profit = net revenue − product cost.",
+    sol: "SELECT product_category,\n       ROUND(SUM(net_revenue_inr)) AS revenue,\n       ROUND(SUM(net_revenue_inr - product_cost_inr)) AS gross_profit,\n       ROUND(100.0 * SUM(net_revenue_inr - product_cost_inr) / SUM(net_revenue_inr), 1) AS margin_pct\nFROM orders_monthly WHERE order_status = 'Delivered'\nGROUP BY product_category ORDER BY margin_pct DESC;" },
+  { id: "a6", topic: "Conditional Logic", level: "Advanced", mins: 10, t: "YoY sessions growth by source", task: "Per traffic_source: 2023 sessions, 2024 sessions and growth % (1 dp), fastest growth first.", tables: ["web_monthly"], hint: "Conditional aggregation: SUM(CASE WHEN year_month LIKE '2024%' THEN sessions END).",
+    sol: "SELECT traffic_source,\n       SUM(CASE WHEN year_month LIKE '2023%' THEN sessions END) AS s2023,\n       SUM(CASE WHEN year_month LIKE '2024%' THEN sessions END) AS s2024,\n       ROUND(100.0 * (SUM(CASE WHEN year_month LIKE '2024%' THEN sessions END) - SUM(CASE WHEN year_month LIKE '2023%' THEN sessions END))\n             / SUM(CASE WHEN year_month LIKE '2023%' THEN sessions END), 1) AS growth_pct\nFROM web_monthly GROUP BY traffic_source ORDER BY growth_pct DESC;" },
+  { id: "a7", topic: "Aggregations", level: "Advanced", mins: 9, t: "Ad profit by platform and year", task: "platform, year (first 4 chars of year_month), ad profit (margin − spend, 0 dp) and profit % of purchase value (1 dp).", tables: ["social_ads_monthly"], hint: "SUBSTR(year_month, 1, 4).",
+    sol: "SELECT platform, SUBSTR(year_month, 1, 4) AS year,\n       ROUND(SUM(purchase_gross_margin_inr) - SUM(spend_inr)) AS ad_profit,\n       ROUND(100.0 * (SUM(purchase_gross_margin_inr) - SUM(spend_inr)) / SUM(purchase_value_inr), 1) AS profit_pct\nFROM social_ads_monthly GROUP BY platform, year ORDER BY platform, year;" },
+  { id: "a8", topic: "Subqueries", level: "Advanced", mins: 11, t: "Campaign types beating the overall CTOR", task: "campaign_type and CTOR % (unique_clicks ÷ unique_opens, 1 dp) for types whose CTOR is above the overall CTOR. Highest first.", tables: ["email_performance"], hint: "Compare with a scalar subquery in HAVING.",
+    sol: "SELECT campaign_type, ROUND(100.0 * SUM(unique_clicks) / SUM(unique_opens), 1) AS ctor\nFROM email_performance\nGROUP BY campaign_type\nHAVING 1.0 * SUM(unique_clicks) / SUM(unique_opens) >\n       (SELECT 1.0 * SUM(unique_clicks) / SUM(unique_opens) FROM email_performance)\nORDER BY ctor DESC;" },
+];
+const ED_KEY = "axon_mkt_editor_v1";
+let edDb = null, edLoading = null, edCur = null, psLevel = "All", psTopic = "All", psTable = "All";
+function edState() { try { const s = JSON.parse(lsGet(ED_KEY)); return s && s.solved ? s : { solved: {}, drafts: {} }; } catch (e) { return { solved: {}, drafts: {} }; } }
+function edSave(s) { lsSet(ED_KEY, JSON.stringify(s)); }
+const localDay = (d) => { const x = d || new Date(); return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+function todaysProblems() {
+  const day = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+  const pick = (lv, k) => { const L = PRACTICE_PROBLEMS.filter(p => p.level === lv); return L[(day * k) % L.length]; };
+  return [pick("Easy", 1), pick("Medium", 3), pick("Advanced", 5)];
+}
+function solveDays() { const st = edState(); return new Set(Object.values(st.solved)); }
+function solveStreak() {
+  const set = solveDays(); let n = 0; const d = new Date();
+  if (!set.has(localDay(d))) d.setDate(d.getDate() - 1);           // streak survives until today ends
+  while (set.has(localDay(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function loadSqlEngine() {
+  if (edDb) return Promise.resolve(edDb);
+  if (edLoading) return edLoading;
+  edLoading = new Promise((res, rej) => {
+    const go = () => window.initSqlJs({}).then(SQL => {
+      const db = new SQL.Database(); const T = window.PRACTICE_DB || {};
+      db.run("BEGIN");
+      Object.entries(T).forEach(([name, t]) => {
+        const types = t.cols.map((c, i) => { const vals = t.rows.map(r => r[i]).filter(v => v !== null); if (!vals.length || typeof vals[0] !== "number") return "TEXT"; return vals.every(Number.isInteger) && !/inr|rate|pct/.test(c) ? "INTEGER" : "REAL"; });
+        db.run(`CREATE TABLE ${name} (${t.cols.map((c, i) => `"${c}" ${types[i]}`).join(", ")})`);
+        const st = db.prepare(`INSERT INTO ${name} VALUES (${t.cols.map(() => "?").join(",")})`);
+        t.rows.forEach(r => st.run(r)); st.free();
+      });
+      db.run("COMMIT"); edDb = db; res(db);
+    }).catch(rej);
+    if (window.initSqlJs) go();
+    else { const s = document.createElement("script"); s.src = "assets/vendor/sql-asm.js"; s.onload = go; s.onerror = () => rej(new Error("Could not load the SQL engine")); document.head.appendChild(s); }
+  });
+  return edLoading;
+}
+function edRun(sql) { const res = edDb.exec(sql); return res.length ? res[res.length - 1] : { columns: [], values: [] }; }
+function edNorm(r, ordered) {
+  const rows = r.values.map(row => row.map(v => v === null ? "∅" : (typeof v === "number" ? (Math.round(v * 100) / 100).toFixed(2) : String(v).trim())).join("¦"));
+  return ordered ? rows : rows.slice().sort();
+}
+function edTable(r) {
+  if (!r.columns.length) return `<div class="ed-empty">Query ran. No rows returned.</div>`;
+  const head = `<tr>${r.columns.map(c => `<th>${esc(c)}</th>`).join("")}</tr>`;
+  const body = r.values.slice(0, 200).map(row => `<tr>${row.map(v => `<td>${v === null ? '<span class="ed-null">NULL</span>' : esc(typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString("en-IN") : (Math.round(v * 100) / 100).toLocaleString("en-IN")) : v)}</td>`).join("")}</tr>`).join("");
+  return `<div class="ed-rowcount">${r.values.length} row${r.values.length === 1 ? "" : "s"}${r.values.length > 200 ? " (showing 200)" : ""}</div><div class="ed-table-wrap"><table class="dtable ed-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+const lvlBadge = (l) => `<span class="lvl lvl-${l.toLowerCase()}">${l === "Medium" ? "Med." : l === "Advanced" ? "Hard" : l}</span>`;
+
+/* ---------------- Problemset (browse) ---------------- */
+function renderProblemset() {
+  const rowsEl = document.getElementById("ps-rows"); if (!rowsEl) return;
+  const st = edState(); const solvedN = Object.keys(st.solved).length; const today = todaysProblems();
+  document.getElementById("ps-progress").textContent = `${solvedN} / ${PRACTICE_PROBLEMS.length} Solved`;
+  document.getElementById("ps-streak").textContent = `${solveStreak()} day streak · ${today.filter(p => st.solved[p.id]).length}/3 of today's set`;
+  document.getElementById("ps-today-sub").textContent = today.map(p => p.t).join(" · ");
+  const topics = ["All", ...new Set(PRACTICE_PROBLEMS.map(p => p.topic))];
+  document.getElementById("ps-topics").innerHTML = topics.map(t => `<button class="ps-chip ${t === psTopic ? "on" : ""}" data-topic="${esc(t)}">${t === "All" ? "All Topics" : esc(t)} <small>(${t === "All" ? PRACTICE_PROBLEMS.length : PRACTICE_PROBLEMS.filter(p => p.topic === t).length})</small></button>`).join("");
+  const tabs = ["All", "email_performance", "social_ads_monthly", "whatsapp_summary", "web_monthly", "orders_monthly", "campaigns"];
+  const tlabel = { All: "All Tables", email_performance: "Email", social_ads_monthly: "Facebook & Instagram", whatsapp_summary: "WhatsApp", web_monthly: "Web", orders_monthly: "Orders", campaigns: "Campaigns" };
+  document.getElementById("ps-tables").innerHTML = tabs.map(t => `<button class="ps-disc ${t === psTable ? "on" : ""}" data-tab="${t}">${tlabel[t]}</button>`).join("");
+  document.getElementById("ps-levels").innerHTML = ["All", "Easy", "Medium", "Advanced"].map(l => `<button class="${l === psLevel ? "on" : ""}" data-lv="${l}">${l === "Advanced" ? "Hard" : l}</button>`).join("");
+  const q = (document.getElementById("ps-search").value || "").toLowerCase(); const stf = document.getElementById("ps-status").value;
+  const list = PRACTICE_PROBLEMS.map((p, i) => ({ ...p, n: i + 1 })).filter(p => (psLevel === "All" || p.level === psLevel) && (psTopic === "All" || p.topic === psTopic) && (psTable === "All" || p.tables.includes(psTable))
+    && (!q || (p.n + " " + p.t + " " + p.task).toLowerCase().includes(q)) && (stf === "all" || (stf === "done") === !!st.solved[p.id]));
+  rowsEl.innerHTML = list.length ? list.map(p => `<tr data-open="${p.id}">
+      <td>${st.solved[p.id] ? '<span class="ps-st done">✓</span>' : '<span class="ps-st"></span>'}</td>
+      <td><div class="ps-title">${p.n}. ${esc(p.t)}${today.some(x => x.id === p.id) ? ' <span class="ps-todaytag">TODAY</span>' : ""}</div><div class="ps-tags"><span class="ps-tag2">▤ SQL</span>${p.tables.map(t => `<span class="ps-tag2 grey">${t}</span>`).join("")}</div></td>
+      <td class="ps-time">${p.mins} min</td><td>${lvlBadge(p.level)}</td><td class="ps-arrow">→</td></tr>`).join("")
+    : `<tr><td colspan="5" class="ed-empty">No problems match these filters.</td></tr>`;
+  rowsEl.querySelectorAll("[data-open]").forEach(r => r.addEventListener("click", () => openProblem(r.dataset.open)));
+  document.querySelectorAll("#ps-topics [data-topic]").forEach(b => b.addEventListener("click", () => { psTopic = b.dataset.topic; renderProblemset(); }));
+  document.querySelectorAll("#ps-tables [data-tab]").forEach(b => b.addEventListener("click", () => { psTable = b.dataset.tab; renderProblemset(); }));
+  document.querySelectorAll("#ps-levels [data-lv]").forEach(b => b.addEventListener("click", () => { psLevel = b.dataset.lv; renderProblemset(); }));
+  renderCalendar();
+  const tl = document.getElementById("ps-tablelist");
+  if (tl) tl.innerHTML = Object.entries(window.PRACTICE_DB || {}).map(([n, t]) => `<div class="ps-tl"><code>${n}</code><span>${t.rows.length} rows · ${t.cols.length} cols</span></div>`).join("");
+}
+function renderCalendar() {
+  const w = document.getElementById("ps-cal"); if (!w) return;
+  const days = solveDays(); const now = new Date(); const y = now.getFullYear(), m = now.getMonth();
+  const first = new Date(y, m, 1).getDay(), n = new Date(y, m + 1, 0).getDate(); const todayN = now.getDate();
+  let cells = ""; for (let i = 0; i < first; i++) cells += "<span></span>";
+  for (let d = 1; d <= n; d++) { const key = localDay(new Date(y, m, d)); cells += `<span class="${d === todayN ? "today" : ""} ${days.has(key) ? "solved" : ""}">${d}</span>`; }
+  let last7 = 0; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() - i); if (days.has(localDay(d))) last7++; }
+  const solvedToday = days.has(localDay());
+  w.innerHTML = `<div class="ps-cal-head"><span class="ps-fire">🔥</span><div><strong>${now.toLocaleDateString("en-IN", { month: "long", year: "numeric" }).toUpperCase()}</strong><small>${days.size} days solved · ${solveStreak()} day streak</small></div><span class="ps-badge ${solvedToday ? "ok" : ""}">${solvedToday ? "Done today" : "Not yet today"}</span></div>
+    <div class="ps-cal-grid">${["S", "M", "T", "W", "T", "F", "S"].map(x => `<b>${x}</b>`).join("")}${cells}</div>
+    <div class="ps-cal-foot"><span>Last 7 days</span><strong>${last7} / 7 Days</strong></div><div class="ps-cal-bar"><i style="width:${Math.round(last7 / 7 * 100)}%"></i></div>`;
+}
+
+/* ---------------- Solve view ---------------- */
+function renderSchema() {
+  const w = document.getElementById("ed-schema"); if (!w) return;
+  const T = window.PRACTICE_DB || {};
+  w.innerHTML = Object.entries(T).map(([n, t]) => `<details ${edCur && edCur.tables.includes(n) ? "open" : ""}><summary><code>${n}</code> <span>${t.rows.length} rows</span></summary><div class="ed-cols">${t.cols.map(c => `<button class="ed-col" data-ins="${c}">${c}</button>`).join("")}</div></details>`).join("");
+  w.querySelectorAll("[data-ins]").forEach(b => b.addEventListener("click", () => { const ta = document.getElementById("ed-sql"); const p = ta.selectionStart; ta.value = ta.value.slice(0, p) + b.dataset.ins + ta.value.slice(ta.selectionEnd); ta.focus(); ta.selectionStart = ta.selectionEnd = p + b.dataset.ins.length; }));
+}
+function showBrowse() { const b = document.getElementById("ed-browse"), s = document.getElementById("ed-solve"); if (!b) return; b.style.display = ""; s.style.display = "none"; renderProblemset(); }
+function openProblem(id) {
+  initEditor();
+  edCur = PRACTICE_PROBLEMS.find(p => p.id === id) || PRACTICE_PROBLEMS[0];
+  document.getElementById("ed-browse").style.display = "none"; document.getElementById("ed-solve").style.display = "";
+  const st = edState(); const idx = PRACTICE_PROBLEMS.indexOf(edCur);
+  document.getElementById("ed-pos").textContent = `Problem ${idx + 1} of ${PRACTICE_PROBLEMS.length} · ${edCur.topic}`;
+  document.getElementById("ed-title").innerHTML = `${lvlBadge(edCur.level)} ${idx + 1}. ${esc(edCur.t)} <span class="ed-mins">⏱ ${edCur.mins} min</span>${st.solved[edCur.id] ? ' <span class="ps-badge ok">Solved</span>' : ""}`;
+  document.getElementById("ed-task").textContent = edCur.task;
+  document.getElementById("ed-tables").innerHTML = "Tables: " + edCur.tables.map(t => `<code>${t}</code>`).join(" ");
+  document.getElementById("ed-sql").value = st.drafts[edCur.id] || `-- ${edCur.t}\nSELECT *\nFROM ${edCur.tables[0]}\nLIMIT 10;`;
+  document.getElementById("ed-out").innerHTML = `<div class="ed-empty">Write your query, then press <kbd>Run</kbd> (Ctrl + Enter) and <kbd>Submit</kbd>.</div>`;
+  document.getElementById("ed-msg").innerHTML = "";
+  renderSchema(); window.scrollTo({ top: 0, behavior: "auto" });
+}
+function edMsg(kind, html) { document.getElementById("ed-msg").innerHTML = `<div class="ed-msg ${kind}">${html}</div>`; }
+function initEditor() {
+  const run = document.getElementById("ed-run"); if (!run) return;
+  if (run._b) { if (document.getElementById("ed-solve").style.display === "none") renderProblemset(); return; }
+  run._b = true;
+  const ta = document.getElementById("ed-sql");
+  const withDb = (fn) => { edMsg("info", "⏳ Loading the SQL engine (first time only)…"); loadSqlEngine().then(() => { document.getElementById("ed-msg").innerHTML = ""; fn(); }).catch(e => edMsg("bad", "⚠ " + esc(e.message) + ". Open the site from a web server (or check your connection)."));
+  };
+  const doRun = () => withDb(() => { const st = edState(); st.drafts[edCur.id] = ta.value; edSave(st);
+    try { document.getElementById("ed-out").innerHTML = edTable(edRun(ta.value)); } catch (e) { edMsg("bad", "❌ " + esc(e.message)); } });
+  run.addEventListener("click", doRun);
+  ta.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); doRun(); }
+    if (e.key === "Tab") { e.preventDefault(); const p = ta.selectionStart; ta.value = ta.value.slice(0, p) + "  " + ta.value.slice(ta.selectionEnd); ta.selectionStart = ta.selectionEnd = p + 2; }
+  });
+  document.getElementById("ed-check").addEventListener("click", () => withDb(() => {
+    let mine;
+    try { mine = edRun(ta.value); } catch (e) { edMsg("bad", "❌ Your query has an error: " + esc(e.message)); return; }
+    const exp = edRun(edCur.sol); document.getElementById("ed-out").innerHTML = edTable(mine);
+    const ordered = /order\s+by[^()]*;?\s*$/i.test(edCur.sol);
+    const ok = mine.columns.length === exp.columns.length && JSON.stringify(edNorm(mine, ordered)) === JSON.stringify(edNorm(exp, ordered));
+    if (ok) { const st = edState(); if (!st.solved[edCur.id]) st.solved[edCur.id] = localDay(); st.drafts[edCur.id] = ta.value; edSave(st);
+      const t3 = todaysProblems(); const done = t3.filter(p => st.solved[p.id]).length;
+      edMsg("good", `✅ Correct · ${done} of 3 today · 🔥 ${solveStreak()} day streak`); renderHeroCards(); }
+    else edMsg("bad", `✗ Not quite. Expected ${exp.values.length} row(s) × ${exp.columns.length} column(s); you returned ${mine.values.length} × ${mine.columns.length}. ${mine.columns.length === exp.columns.length ? "Check your values, rounding and filters." : "Check the columns you SELECT."}`);
+  }));
+  document.getElementById("ed-hint").addEventListener("click", () => edMsg("info", "💡 " + esc(edCur.hint)));
+  document.getElementById("ed-solution").addEventListener("click", () => { ta.value = edCur.sol; edMsg("info", "🔓 Solution loaded. Run it and compare with your approach."); });
+  document.getElementById("ed-reset").addEventListener("click", () => { const st = edState(); delete st.drafts[edCur.id]; edSave(st); openProblem(edCur.id); });
+  document.getElementById("ed-back").addEventListener("click", showBrowse);
+  const step = (k) => { const i = PRACTICE_PROBLEMS.indexOf(edCur); openProblem(PRACTICE_PROBLEMS[(i + k + PRACTICE_PROBLEMS.length) % PRACTICE_PROBLEMS.length].id); };
+  document.getElementById("ed-prev").addEventListener("click", () => step(-1));
+  document.getElementById("ed-next").addEventListener("click", () => step(1));
+  document.getElementById("ps-search").addEventListener("input", renderProblemset);
+  document.getElementById("ps-status").addEventListener("change", renderProblemset);
+  document.getElementById("ps-random").addEventListener("click", () => { const st = edState(); const L = PRACTICE_PROBLEMS.filter(p => !st.solved[p.id]); const pool = L.length ? L : PRACTICE_PROBLEMS; openProblem(pool[Math.floor(Math.random() * pool.length)].id); });
+  document.getElementById("ps-today-go").addEventListener("click", () => { const st = edState(); const t = todaysProblems(); openProblem((t.find(p => !st.solved[p.id]) || t[0]).id); });
+  renderProblemset();
+}
+
+/* ---------------- Hero floating cards (DailySQL-style) ---------------- */
+function renderHeroCards() {
+  const st = edState(); const t3 = todaysProblems(); const done = t3.filter(p => st.solved[p.id]).length; const streak = solveStreak();
+  const p1 = t3[1] || PRACTICE_PROBLEMS[0];
+  const c1 = document.getElementById("hero-problem-card");
+  if (c1) {
+    const code = p1.sol.split("\n").slice(0, 3).join("\n");
+    c1.innerHTML = `<div class="hf-top"><span class="hf-ic">▤</span><span class="hf-lv">SQL · ${p1.level}</span><span class="hf-day">Today</span></div><h5>${esc(p1.t)}</h5><p>${esc(p1.task.length > 90 ? p1.task.slice(0, 88) + "…" : p1.task)}</p><pre>${esc(code)}</pre>
+      <div class="hf-ok">${st.solved[p1.id] ? "✓ Correct" : "○ Not solved yet"} · ${done} of 3 today</div>`;
+    c1.onclick = () => { switchView("editor"); openProblem(p1.id); };
+  }
+  const c2 = document.getElementById("hero-streak-card");
+  if (c2) c2.innerHTML = `<div class="hf-top"><span>🔥</span><span class="hf-lv dark">STREAK</span><span class="hf-fire">${streak > 0 ? "On fire 🔥" : "Start today"}</span></div>
+      <div class="hf-big">${streak}<small>day streak</small></div><div class="hf-prog"><span>Today's progress</span><b>${done} / 3</b></div><div class="hf-bar"><i style="width:${Math.round(done / 3 * 100)}%"></i></div>
+      ${t3.map(p => `<div class="hf-row"><span>▤ ${p.level}</span><span class="${st.solved[p.id] ? "ok" : ""}">${st.solved[p.id] ? "✓" : "○"}</span></div>`).join("")}`;
+  const c3 = document.getElementById("hero-top-card");
+  if (c3) {
+    const ch = (MD.ch_roas || []).slice(0, 4); const col = { Email: "#8B5CF6", WhatsApp: "#16A34A", Facebook: "#2563EB", Instagram: "#DB2777" };
+    c3.innerHTML = `<div class="hf-top"><span>🏆</span><span class="hf-lv dark">Top channels by ROAS</span></div>${ch.map(([k, v]) => `<div class="hf-lb"><i style="background:${col[k] || "#0EA5A4"}">${k[0]}</i><span>${k}</span><b>${v}×</b></div>`).join("")}<div class="hf-foot">From the AXon dataset</div>`;
+  }
+  const c4 = document.getElementById("hero-today-card");
+  if (c4) {
+    c4.innerHTML = `<div class="hf-lv dark" style="margin-bottom:8px;">TODAY'S SET · 3 PROBLEMS</div>${t3.map(p => `<button class="hf-li" data-hp="${p.id}"><span>▤</span><span>SQL ${p.level === "Advanced" ? "Hard" : p.level}</span><small>${st.solved[p.id] ? "✓" : p.mins + " min"}</small></button>`).join("")}<div class="hf-foot"><i class="dot"></i> ${3 - done} problem${3 - done === 1 ? "" : "s"} remaining</div>`;
+    c4.querySelectorAll("[data-hp]").forEach(b => b.addEventListener("click", () => { switchView("editor"); openProblem(b.dataset.hp); }));
+  }
+}
+function renderDailyCard() { renderHeroCards(); }
+function renderIntegrity() {
+  const t = document.getElementById("integrity-table"); const R = (window.MKT && window.MKT.integrity) || []; if (!t || !R.length) return;
+  const ok = R.filter(r => r.ok).length;
+  t.innerHTML = `<thead><tr><th>Check</th><th>Relationship / rule</th><th>Result</th><th>Status</th></tr></thead><tbody>${R.map(r => `<tr><td>${esc(r.check)}</td><td><code>${esc(r.relationship)}</code></td><td class="num">${fmtN(r.result)}${r.note ? `<div style="font-size:11.5px;color:var(--ink-muted);">${esc(r.note)}</div>` : ""}</td><td>${r.ok ? '<span class="recon-ok">✓ Pass</span>' : '<span style="color:var(--red);font-weight:700;">✗ Fail</span>'}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="4"><strong>${ok} / ${R.length} checks pass.</strong></td></tr></tfoot>`;
+}
+document.addEventListener("DOMContentLoaded", () => {
+  renderHeroCards(); renderIntegrity();
+  document.querySelectorAll("[data-scroll]").forEach(b => b.addEventListener("click", () => { const t = document.getElementById(b.dataset.scroll); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  document.querySelectorAll('.ds-announce [data-goto="editor"]').forEach(b => b.addEventListener("click", () => switchView("editor")));
 });
