@@ -2987,3 +2987,306 @@ document.addEventListener("DOMContentLoaded", () => {
   if (SCH_API) { schLoadRemote(); setInterval(() => { if (!schIsTrainer()) schLoadRemote(true); }, 60000); }
   else schProbe();
 });
+/* ============================================================
+   Job Simulator: Incident Room, Broken Dashboard, Stakeholder Simulator
+   + cloud progress hook (window.HUB_PROGRESS, used by visit-kit.js)
+   Every number below is an existing AXon answer-key value (mkt-data.js).
+   ============================================================ */
+const SIM_KEY = "axon_mkt_sim_v1";
+function simState() { try { const s = JSON.parse(lsGet(SIM_KEY)); if (s && typeof s === "object") return Object.assign({ inc: {}, brk: {}, stk: {} }, s); } catch (e) {} return { inc: {}, brk: {}, stk: {} }; }
+function simSave(s) { lsSet(SIM_KEY, JSON.stringify(s)); try { window.dispatchEvent(new Event("hub-progress")); } catch (e) {} }
+const simPct = (n) => `${Math.round(n)}%`;
+const N_ = (n) => Number(n).toLocaleString("en-IN");
+const WA_ = (A.wa || {});
+
+/* ============================================================
+   1) INCIDENT ROOM
+   ============================================================ */
+const INCIDENTS = [
+  { id: "i1", lvl: "Easy", title: "“Our open rate is 69%!”", from: "Priya Menon · CMO", time: "Mon 9:12 AM",
+    msg: `Our email open rate is ${A.total_open_rate}%. Industry average is around 20%. I want this number on the board deck on Friday. Can you confirm it?`,
+    metric: [["Open rate on the dashboard", `${A.total_open_rate}%`]],
+    evidence: [
+      { id: "e1", rel: true, t: "Total vs unique opens", sql: "SELECT COUNT(*) AS total_opens,\n       COUNT(DISTINCT CONCAT(Email_ID, '-', Customer_ID)) AS unique_opens\nFROM Activities WHERE Activity_Type = 'Open';",
+        res: [["total_opens", N_(A.opens)], ["unique_opens", N_(A.unique_opens)], ["delivered", N_(A.delivered)]], note: `${N_(A.opens)} ÷ ${N_(A.delivered)} = ${A.total_open_rate}%, but ${N_(A.unique_opens)} ÷ ${N_(A.delivered)} = ${A.unique_open_rate}%. The same person opening twice was counted twice.` },
+      { id: "e2", rel: true, t: "Open rate by email client", sql: "-- unique open rate by Customers.Email_Client", res: (MD.open_by_client || []).map(([k, v]) => [k, v + "%"]), note: "Apple Mail is far above every other client. Gmail, Outlook and Other are all around 31%." },
+      { id: "e3", rel: true, t: "Seconds between delivery and open", sql: "-- opens that happen < 15 seconds after the Delivered event", res: [["machine opens (< 15 s)", N_(A.machine_opens)], ["share of all opens", A.machine_open_share + "%"]], note: "Apple Mail Privacy Protection pre-loads every email, which fires the tracking pixel without a human opening it." },
+      { id: "e4", rel: false, t: "Emails sent per month", sql: "SELECT DATE_FORMAT(Email_Sent_Date, '%Y-%m'), SUM(Recipients) FROM Emails GROUP BY 1;", res: [["pattern", "steady, no spike"]], note: "Send volume did not change. This doesn't explain the open rate." },
+    ],
+    causes: [["c1", "The tracking pixel is broken and fires twice"], ["c2", "Open rate counts every open (repeats) and Apple Mail machine opens, not unique human opens", true], ["c3", "Subject lines improved a lot this quarter"], ["c4", "Bounced emails were counted as delivered"], ["c5", "There are duplicate customers in the Customers table"]],
+    fixes: [["f1", `Report unique human open rate (unique opens ≥ 15 s after delivery ÷ delivered) = ${A.human_open_rate}%, and show the raw number only as a footnote`, true], ["f2", "Remove Apple Mail users from the mailing list"], ["f3", "Use total opens ÷ emails sent"], ["f4", "Stop reporting open rate at all"]],
+    answer: `Root cause: open rate was total opens ÷ delivered, so repeat opens and Apple Mail's automatic “machine opens” (${N_(A.machine_opens)}) were counted. Unique open rate is ${A.unique_open_rate}%; human open rate is <b>${A.human_open_rate}%</b>.`,
+    tell: `“The 69% counts repeat and automatic opens. The real human open rate is ${A.human_open_rate}%, which is still well above the industry average. I'd put ${A.human_open_rate}% on the board deck.”` },
+  { id: "i2", lvl: "Easy", title: "“WhatsApp only delivers 27.6%”", from: "Rohan Gupta · CRM Manager", time: "Tue 11:40 AM",
+    msg: `The WhatsApp report says only ${WA_.wrong_delivery_rate}% of our messages are delivered. Should we cancel the WhatsApp BSP contract?`,
+    metric: [["Delivery rate on the report", `${WA_.wrong_delivery_rate}%`]],
+    evidence: [
+      { id: "e1", rel: true, t: "Message_Status distribution", sql: "SELECT Message_Status, COUNT(*) FROM WhatsApp_Messages GROUP BY Message_Status;", res: [["Read", N_(WA_.read)], ["Delivered", N_(WA_.delivered_status_only)], ["Failed", N_(WA_.failed)], ["Total", N_(WA_.sent)]], note: "Only 3,303 messages failed. Most messages are in the Read status." },
+      { id: "e2", rel: true, t: "Data dictionary: Message_Status", sql: "-- Data Dictionary → WhatsApp_Messages", res: [["Message_Status", "the FINAL status of the message"], ["lifecycle", "Sent → Delivered → Read"]], note: "A message marked Read was delivered first. Its status just moved on." },
+      { id: "e3", rel: false, t: "Opt-outs", sql: "SELECT SUM(Opted_Out = 'Yes') FROM WhatsApp_Messages;", res: [["opted out", N_(WA_.optouts)], ["opt-out rate", WA_.optout_rate + "%"]], note: "Opt-outs are low and don't explain delivery." },
+      { id: "e4", rel: false, t: "Time to read", sql: "-- median minutes from send to read", res: [["median", (WA_.read_median_min || 66) + " min"]], note: "Interesting for timing, not for delivery." },
+    ],
+    causes: [["c1", "The BSP is failing to deliver most messages"], ["c2", "Many phone numbers are invalid"], ["c3", "Delivered was counted only where Message_Status = 'Delivered', so messages that went on to be Read were left out", true], ["c4", "Customers opted out of WhatsApp"], ["c5", "Messages were sent twice"]],
+    fixes: [["f1", `Delivered = Message_Status IN ('Delivered', 'Read') → ${WA_.delivery_rate}%, and document that the column is the final status`, true], ["f2", "Switch to a different BSP"], ["f3", "Count only messages with status 'Sent'"], ["f4", "Exclude Read messages from the denominator"]],
+    answer: `Root cause: Message_Status stores the final status. Read messages were delivered first, so Delivered = Delivered + Read = ${N_(WA_.delivered)} of ${N_(WA_.sent)} → <b>${WA_.delivery_rate}%</b>.`,
+    tell: `“Delivery is actually ${WA_.delivery_rate}%, not ${WA_.wrong_delivery_rate}%. The report counted only messages still sitting in 'Delivered' and missed the ${N_(WA_.read)} that were read. No need to change the BSP.”` },
+  { id: "i3", lvl: "Medium", title: "“Website traffic was zero on 12 March”", from: "Kavya Iyer · Head of Digital", time: "Wed 4:05 PM",
+    msg: `The dashboard shows zero website sessions on 12 March 2024, but Meta still spent ₹${N_(A.spend_gap_missing_day)} that day. Did the site crash, and are we wasting ad money?`,
+    metric: [["Sessions on 12 Mar 2024", "0"], ["Meta spend that day", `₹${N_(A.spend_gap_missing_day)}`]],
+    evidence: [
+      { id: "e1", rel: true, t: "Daily sessions, 8–16 March 2024", sql: "SELECT Date, SUM(Sessions) FROM Web_Engagement\nWHERE Date BETWEEN '2024-03-08' AND '2024-03-16' GROUP BY Date;", res: [["8 Mar", "20,181"], ["9 Mar", "22,706"], ["10 Mar", "24,842"], ["11 Mar", "21,234"], ["12 Mar", "(no row)"], ["13 Mar", "21,339"], ["14 Mar", "21,150"]], note: "12 March isn't a low number. It has no row at all." },
+      { id: "e2", rel: true, t: "Rows per day in Web_Engagement", sql: "SELECT Date, COUNT(*) FROM Web_Engagement GROUP BY Date ORDER BY 2;", res: [["normal day", "96 rows (8 sources × 3 devices × 4 regions)"], ["12 Mar 2024", "0 rows"]], note: "Every other day of 730 has exactly 96 rows." },
+      { id: "e3", rel: true, t: "Orders on the same days", sql: "SELECT DATE(Order_Date), COUNT(*) FROM Orders\nWHERE Order_Date BETWEEN '2024-03-10' AND '2024-03-14' GROUP BY 1;", res: [["10 Mar", "61"], ["11 Mar", "65"], ["12 Mar", "50"], ["13 Mar", "76"], ["14 Mar", "61"]], note: "People were still buying on 12 March. The site was up." },
+      { id: "e4", rel: false, t: "Festive season flag", sql: "SELECT Festive_Season FROM Dim_Date WHERE Date = '2024-03-12';", res: [["Festive_Season", "No"]], note: "Not a holiday. Doesn't explain a total blank." },
+    ],
+    causes: [["c1", "The website crashed for the whole day"], ["c2", "Meta ads were paused"], ["c3", "Web analytics tracking failed that day, so the data is missing (no rows), not zero traffic", true], ["c4", "A bot filter removed all sessions"], ["c5", "It was a public holiday"]],
+    fixes: [["f1", "Add a completeness check (96 rows expected per day), flag the missing day on the dashboard, and exclude it from daily averages instead of treating it as 0", true], ["f2", "Fill 12 March with zeros"], ["f3", "Stop Meta ads on days with no traffic"], ["f4", "Delete 12 March from Dim_Date"]],
+    answer: `Root cause: a tracking outage. Web_Engagement has <b>no rows</b> for 2024-03-12 while every other day has 96, and orders (50) and Meta spend (₹${N_(A.spend_gap_missing_day)}) continued normally.`,
+    tell: "“The site didn't crash. Web tracking failed for that one day, so we have no data, not zero visitors. Orders came in as usual. I've flagged the day and excluded it from averages.”" },
+  { id: "i4", lvl: "Advanced", title: "“Email revenue jumped 4×”", from: "Arjun Nair · Finance Controller", time: "Thu 6:30 PM",
+    msg: `Your new SQL view says email marketing drove ₹1,63,78,333. Last month's report said ₹${N_(A.attr_rev)}. Which number goes to the CFO?`,
+    metric: [["New view", "₹1,63,78,333"], ["Last report", `₹${N_(A.attr_rev)}`]],
+    evidence: [
+      { id: "e1", rel: true, t: "Row counts before and after the join", sql: "SELECT COUNT(*) FROM Orders WHERE Attributed_Channel='Email' AND Order_Status='Delivered';\nSELECT COUNT(*) FROM vw_email_revenue;   -- the new view", res: [["delivered email orders", "2,113"], ["rows in the new view", "8,712"]], note: "The view has 4× more rows than there are orders." },
+      { id: "e2", rel: true, t: "The new view's SQL", sql: "SELECT SUM(o.Net_Revenue_INR)\nFROM Orders o\nJOIN Activities a\n  ON a.Email_ID = o.Attributed_Email_ID\n AND a.Customer_ID = o.Customer_ID\nWHERE o.Order_Status = 'Delivered';", res: [["joins to", "every email event of that customer"]], note: "Activities has one row per event: Delivered, Open, Click…" },
+      { id: "e3", rel: true, t: "Activity types inside the join", sql: "SELECT a.Activity_Type, COUNT(*) FROM ... GROUP BY 1;", res: [["Open", "3,722"], ["Click", "2,872"], ["Delivered", "2,113"], ["Unsubscribe", "4"], ["Spam Complaint", "1"]], note: "Each order is repeated once per event." },
+      { id: "e4", rel: false, t: "Email campaign spend", sql: "SELECT SUM(Actual_Spend_INR) FROM Campaigns WHERE Channel = 'Email';", res: [["spend", `₹${N_(A.spend)}`]], note: "Spend didn't change, only the revenue query did." },
+    ],
+    causes: [["c1", "Email campaigns really performed 4× better"], ["c2", "Cancelled and returned orders were included"], ["c3", "Join fan-out: Orders joined to Activities repeats each order's revenue once per email event", true], ["c4", "Currency was converted twice"], ["c5", "Orders has duplicate Order_IDs"]],
+    fixes: [["f1", "Sum revenue at order grain first (or join only one deduplicated row per order), and add a QA check: row count before the join = row count after", true], ["f2", "Divide the result by 4"], ["f3", "Use SUM(DISTINCT Net_Revenue_INR)"], ["f4", "Remove the Activities table from the model"]],
+    answer: `Root cause: join fan-out. 2,113 orders became 8,712 rows (one per Open/Click/Delivered event), so revenue was summed ~4×. The correct figure is <b>₹${N_(A.attr_rev)}</b>.`,
+    tell: `“Use ₹${N_(A.attr_rev)}. The new view joined orders to every email event and counted each order several times. I've fixed the query and added a row-count check so it can't happen silently again.”` },
+];
+let incCur = null, incOpened = new Set();
+function incBest(id) { const s = simState(); return s.inc[id] ? s.inc[id].best : null; }
+function renderIncidentRoom() {
+  const root = document.getElementById("inc-root"); if (!root) return;
+  if (!incCur) {
+    root.innerHTML = `<div class="js-grid">${INCIDENTS.map((x, i) => { const b = incBest(x.id); return `<button class="card js-case" data-inc="${x.id}">
+        <div class="js-case-top"><span class="lvl lvl-${x.lvl.toLowerCase()}">${x.lvl}</span><span class="js-case-n">Incident ${i + 1}</span>${b != null ? `<span class="js-best ${b >= 70 ? "ok" : ""}">Best ${b}%</span>` : ""}</div>
+        <h4>🚨 ${x.title}</h4><p>${esc(x.from)}</p><span class="js-open">${b != null ? "Retry" : "Investigate"} →</span></button>`; }).join("")}</div>`;
+    root.querySelectorAll("[data-inc]").forEach(b => b.addEventListener("click", () => { incCur = INCIDENTS.find(x => x.id === b.dataset.inc); incOpened = new Set(); renderIncidentRoom(); window.scrollTo({ top: 0 }); }));
+    return;
+  }
+  const x = incCur;
+  root.innerHTML = `<button class="btn-outline js-back" id="inc-back">← All incidents</button>
+    <div class="card js-alert"><div class="js-alert-h"><span>🚨 DATA INCIDENT</span><small>${esc(x.time)}</small></div>
+      <div class="js-msg"><b>${esc(x.from)}</b><p>${esc(x.msg)}</p></div>
+      <div class="js-metrics">${x.metric.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div></div>
+    <h4 class="js-step">Step 1 · Collect evidence <small>(open what you need, not everything)</small></h4>
+    <div class="js-ev">${x.evidence.map(e => `<div class="card js-evc ${incOpened.has(e.id) ? "open" : ""}" data-ev="${e.id}"><button class="js-evb">${incOpened.has(e.id) ? "▾" : "▸"} ${esc(e.t)}</button>
+      ${incOpened.has(e.id) ? `<pre>${esc(e.sql)}</pre><table class="js-res">${e.res.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table><p class="js-note">${esc(e.note)}</p>` : ""}</div>`).join("")}</div>
+    <h4 class="js-step">Step 2 · What is the root cause?</h4>
+    <div class="js-opts">${x.causes.map(([id, t]) => `<label class="js-opt"><input type="radio" name="inc-c" value="${id}"> ${esc(t)}</label>`).join("")}</div>
+    <h4 class="js-step">Step 3 · How do you fix it and stop it happening again?</h4>
+    <div class="js-opts">${x.fixes.map(([id, t]) => `<label class="js-opt"><input type="radio" name="inc-f" value="${id}"> ${esc(t)}</label>`).join("")}</div>
+    <h4 class="js-step">Step 4 · Your one-line reply to ${esc(x.from.split(" · ")[0])} <small>(not scored; compare with the model answer)</small></h4>
+    <textarea class="js-reply" id="inc-reply" placeholder="Write it the way you would in Slack or email…"></textarea>
+    <div class="js-actions"><button class="btn-blue" id="inc-submit">Submit investigation</button></div>
+    <div id="inc-result"></div>`;
+  root.querySelector("#inc-back").addEventListener("click", () => { incCur = null; renderIncidentRoom(); });
+  root.querySelectorAll("[data-ev] .js-evb").forEach(b => b.addEventListener("click", () => { const id = b.parentNode.dataset.ev; if (incOpened.has(id)) incOpened.delete(id); else incOpened.add(id); const c = root.querySelector('input[name="inc-c"]:checked'), f = root.querySelector('input[name="inc-f"]:checked'), r = root.querySelector("#inc-reply").value; renderIncidentRoom(); if (c) root.querySelector(`input[name="inc-c"][value="${c.value}"]`).checked = true; if (f) root.querySelector(`input[name="inc-f"][value="${f.value}"]`).checked = true; root.querySelector("#inc-reply").value = r; }));
+  root.querySelector("#inc-submit").addEventListener("click", () => {
+    const c = root.querySelector('input[name="inc-c"]:checked'), f = root.querySelector('input[name="inc-f"]:checked');
+    if (!c || !f) { root.querySelector("#inc-result").innerHTML = `<div class="ed-msg bad">Pick a root cause and a fix first.</div>`; return; }
+    const relOpen = x.evidence.filter(e => e.rel && incOpened.has(e.id)).length, decoys = x.evidence.filter(e => !e.rel && incOpened.has(e.id)).length;
+    const cOk = x.causes.find(o => o[0] === c.value)[2] === true, fOk = x.fixes.find(o => o[0] === f.value)[2] === true;
+    const ev = Math.max(0, Math.min(20, relOpen * 8) - decoys * 2), sc = Math.round(ev + (cOk ? 50 : 0) + (fOk ? 30 : 0));
+    const s = simState(); const prev = s.inc[x.id] || {}; s.inc[x.id] = { best: Math.max(prev.best || 0, sc), last: sc, tries: (prev.tries || 0) + 1, ts: Date.now() }; simSave(s);
+    root.querySelector("#inc-result").innerHTML = `<div class="card js-score"><div class="js-score-h"><span>Investigation score</span><b>${sc}%</b></div>
+      <div class="js-bars">${[["Evidence", ev, 20], ["Root cause", cOk ? 50 : 0, 50], ["Fix & prevention", fOk ? 30 : 0, 30]].map(([k, v, m]) => `<div class="js-bar"><span>${k}</span><i><em style="width:${v / m * 100}%"></em></i><b>${Math.round(v)}/${m}</b></div>`).join("")}</div>
+      <p>${cOk ? "✅" : "❌"} ${x.answer}</p><p>${fOk ? "✅" : "❌"} <b>Fix:</b> ${esc(x.fixes.find(o => o[2])[1])}</p>
+      <p class="js-note">${relOpen < 2 ? "Tip: an analyst confirms the cause with evidence before answering. Open the relevant evidence next time." : decoys ? `You opened ${decoys} evidence card(s) that didn't help. That's fine, but be quick to drop a lead that doesn't explain the number.` : "Good evidence trail: you went straight to what explains the number."}</p>
+      <div class="js-tell"><b>Model reply to the stakeholder</b><p>${x.tell}</p></div></div>`;
+    renderSimSummary();
+  });
+}
+
+/* ============================================================
+   2) BROKEN DASHBOARD
+   ============================================================ */
+const BROKEN_TILES = [
+  { id: "t1", label: "Emails Delivered", val: N_(A.delivered), bad: false, why: "Correct: Delivered events = Recipients − Bounced." },
+  { id: "t2", label: "Delivery Rate", val: A.doc_delivery + "%", bad: true, why: `Delivered ÷ number of emails (471) instead of ÷ recipients. A rate above 100% is impossible. Correct: ${A.delivery_rate}%.` },
+  { id: "t3", label: "Open Rate", val: A.total_open_rate + "%", bad: true, why: `Total opens ÷ delivered counts repeat and machine opens. Correct: unique ${A.unique_open_rate}%, human ${A.human_open_rate}%.` },
+  { id: "t4", label: "Click-to-Open Rate", val: A.ctor + "%", bad: false, why: "Correct: unique clicks ÷ unique opens." },
+  { id: "t5", label: "Email ROI", val: A.roi + "%", bad: false, why: "Correct: (delivered attributed revenue − spend) ÷ spend." },
+  { id: "t6", label: "Attributed Revenue", val: "₹" + N_(A.attr_rev_all_status), bad: true, why: `Includes cancelled and returned orders. Correct (Delivered only): ₹${N_(A.attr_rev)}.` },
+  { id: "t7", label: "Website Sessions", val: N_(A.sessions), bad: false, why: "Correct: SUM(Sessions) over all rows." },
+  { id: "t8", label: "Unique Visitors", val: N_(A.uv_sum), bad: true, why: "Daily unique visitors were summed, so one person visiting on 10 days counts 10 times. Unique counts are not additive: show it per day or as an average, never as a sum." },
+  { id: "t9", label: "Bounce Rate", val: A.bounce_avg + "%", bad: true, why: `Simple average of row-level bounce %. A row with 10 sessions weighs the same as one with 10,000. Correct (weighted by sessions): ${A.bounce_weighted}%.` },
+  { id: "t10", label: "WhatsApp Read Rate", val: (WA_.read_rate || 0) + "%", bad: false, why: "Correct: Read ÷ Delivered (where Delivered = Delivered + Read)." },
+];
+const BROKEN_CHART = { id: "c1", bad: true, why: `Share was counted as rows per source (every source has the same number of rows → 12.5% each). Correct: share of SESSIONS: ${(MD.src_sessions_pct || []).slice(0, 3).map(([k, v]) => `${k} ${v}%`).join(", ")}…` };
+let brkFlags = new Set(), brkDone = false;
+function renderBroken() {
+  const root = document.getElementById("brk-root"); if (!root) return;
+  const best = simState().brk.best;
+  const tiles = BROKEN_TILES.map(t => { const f = brkFlags.has(t.id); const cls = brkDone ? (t.bad ? (f ? "hit" : "miss") : (f ? "false" : "okay")) : (f ? "flag" : ""); return `<button class="js-tile ${cls}" data-t="${t.id}"><span>${esc(t.label)}</span><b>${esc(t.val)}</b>${brkDone ? `<small>${t.bad ? (f ? "✅ You caught it" : "❌ Missed") : (f ? "⚠ This one was correct" : "✓ Correct")}</small>` : f ? "<small>🚩 Flagged</small>" : ""}</button>`; }).join("");
+  const srcs = ["Organic Search", "Google Ads", "Direct", "Facebook", "Instagram", "Email", "Referral", "WhatsApp"];
+  const cf = brkFlags.has("c1"); const ccls = brkDone ? (cf ? "hit" : "miss") : (cf ? "flag" : "");
+  root.innerHTML = `<div class="card js-brief"><b>📩 From the Marketing Director:</b> “A junior analyst built this for tomorrow's leadership review. Something feels off. Flag every number you would NOT present, then submit.”${best != null ? `<span class="js-best ${best >= 70 ? "ok" : ""}">Your best: ${best}%</span>` : ""}</div>
+    <div class="card js-dash"><div class="js-dash-h"><span>AXon · Email &amp; Web Performance · 2023–2024</span><small>click a tile or the chart to flag it</small></div>
+      <div class="js-tiles">${tiles}</div>
+      <button class="js-chart ${ccls}" data-t="c1"><div class="js-chart-h">Traffic share by source ${brkDone ? `<small>${cf ? "✅ You caught it" : "❌ Missed"}</small>` : cf ? "<small>🚩 Flagged</small>" : ""}</div>
+        ${srcs.map(s => `<div class="js-cbar"><span>${s}</span><i><em style="width:${12.5 * 6}%"></em></i><b>12.5%</b></div>`).join("")}</button></div>
+    <div class="js-actions">${brkDone ? `<button class="btn-outline" id="brk-reset">↺ Try again</button>` : `<button class="btn-blue" id="brk-submit">Submit review (${brkFlags.size} flagged)</button><button class="btn-outline" id="brk-clear">Clear flags</button>`}</div>
+    <div id="brk-result"></div>`;
+  root.querySelectorAll("[data-t]").forEach(b => b.addEventListener("click", () => { if (brkDone) return; const id = b.dataset.t; if (brkFlags.has(id)) brkFlags.delete(id); else brkFlags.add(id); renderBroken(); }));
+  const sub = root.querySelector("#brk-submit"); if (sub) sub.addEventListener("click", () => {
+    const all = BROKEN_TILES.concat([BROKEN_CHART]); const bad = all.filter(t => t.bad);
+    const hits = bad.filter(t => brkFlags.has(t.id)).length, falses = all.filter(t => !t.bad && brkFlags.has(t.id)).length;
+    const sc = Math.max(0, Math.round((hits - falses) / bad.length * 100));
+    const s = simState(); const prev = s.brk || {}; s.brk = { best: Math.max(prev.best || 0, sc), last: sc, tries: (prev.tries || 0) + 1, ts: Date.now() }; simSave(s);
+    brkDone = true; renderBroken();
+    document.getElementById("brk-result").innerHTML = `<div class="card js-score"><div class="js-score-h"><span>Dashboard QA score</span><b>${sc}%</b></div>
+      <p>You caught <b>${hits} of ${bad.length}</b> errors${falses ? ` and flagged <b>${falses}</b> correct number(s) by mistake (−1 each)` : ""}.</p>
+      <ul class="js-why">${all.map(t => `<li class="${t.bad ? "bad" : "good"}"><b>${esc(t.label || "Traffic share by source")}</b> ${t.bad ? "✗" : "✓"} ${esc(t.why)}</li>`).join("")}</ul></div>`;
+    renderSimSummary();
+  });
+  const cl = root.querySelector("#brk-clear"); if (cl) cl.addEventListener("click", () => { brkFlags.clear(); renderBroken(); });
+  const rs = root.querySelector("#brk-reset"); if (rs) rs.addEventListener("click", () => { brkFlags.clear(); brkDone = false; renderBroken(); });
+}
+
+/* ============================================================
+   3) STAKEHOLDER SIMULATOR
+   ============================================================ */
+const STK_CATS = [["obj", "Business objective"], ["metric", "Metric definition"], ["time", "Time period"], ["scope", "Audience & granularity"], ["rules", "Filters & attribution"]];
+const STAKEHOLDERS = [
+  { id: "s1", who: "Priya Menon · CMO", ask: "I need a dashboard to understand campaign performance.",
+    qs: [
+      ["What decision will this dashboard help you make?", "obj", 18, "Where to move next quarter's budget between channels and campaign types."],
+      ["Who else will use it: you, the channel managers, or the board?", "scope", 14, "Me and the four channel managers. The board gets a one-page summary."],
+      ["What does 'performance' mean for you: revenue, ROI, or engagement?", "metric", 18, "ROI first, then revenue. Engagement only as a diagnostic."],
+      ["Which channels and campaigns are in scope?", "scope", 10, "All four: Email, Facebook, Instagram, WhatsApp. Exclude the 2 always-on campaigns from comparisons."],
+      ["Which time period, and do you want a comparison?", "time", 16, "2024 vs 2023, by quarter."],
+      ["Which revenue counts: all orders or only delivered ones?", "rules", 14, "Delivered only. Cancelled and returned orders aren't revenue."],
+      ["Which attribution rule should we use?", "rules", 12, "Last click within 72 hours, same as the KPI document."],
+      ["How often should it refresh?", "time", 6, "Weekly is enough."],
+      ["Which colour theme do you like?", "bad", -8, "Whatever is readable. (A question for later, not for scoping.)"],
+      ["Should I put every column on the dashboard?", "bad", -8, "No, only what supports the decision."],
+      ["Can I use the Excel file instead of the database?", "bad", -6, "Use the database, so QA can reconcile."],
+    ] },
+  { id: "s2", who: "Neha Kapoor · Social Media Manager", ask: "Is Instagram working for us? I need an answer by Friday.",
+    qs: [
+      ["What would you do differently depending on the answer?", "obj", 18, "If it isn't paying back, I'll shift budget to Facebook retargeting."],
+      ["Does 'working' mean engagement or sales?", "metric", 18, "Sales. I know engagement is high, but I need to justify spend."],
+      ["Should I compare it with Facebook or with all channels?", "scope", 14, "Facebook first, then the channel view."],
+      ["Do you want ROAS on revenue, or profit after product cost?", "metric", 12, "Both. Finance asks about profit."],
+      ["Which period: last quarter, last year, or both years?", "time", 16, "Both years, so we see the trend."],
+      ["Should Meta's own purchase numbers or our order data be used?", "rules", 14, "Use Meta-reported purchases for ads, but don't add them to the Orders total."],
+      ["Should reach be summed across days?", "rules", 8, "No, reach isn't additive. Show impressions or average reach."],
+      ["Should I break it down by ad format and city?", "scope", 6, "Ad format yes, city only if something stands out."],
+      ["Can I add a word cloud of comments?", "bad", -8, "Not needed for this decision."],
+      ["Should I build it in Excel, Tableau and Power BI?", "bad", -6, "One tool is enough for this question."],
+      ["Do you want a 3D pie chart?", "bad", -8, "No."],
+    ] },
+  { id: "s3", who: "Arjun Nair · Finance Controller", ask: "Tell me the ROI of marketing.",
+    qs: [
+      ["Is this for a budget decision or for reporting?", "obj", 18, "Budget: we're deciding next year's marketing spend."],
+      ["Which ROI formula: (revenue − spend) ÷ spend, or using gross margin?", "metric", 18, "Show both. Margin-based is what I'll use."],
+      ["Which costs count: media spend only, or also message and production costs?", "metric", 12, "Media spend plus WhatsApp message costs."],
+      ["Which channels: all, or Email and WhatsApp where we have order attribution?", "scope", 14, "All four, but label which revenue is platform-reported."],
+      ["Calendar year or financial year?", "time", 16, "Calendar 2023 and 2024."],
+      ["Should returned and cancelled orders be excluded?", "rules", 14, "Yes, delivered orders only."],
+      ["Which attribution window should I use?", "rules", 10, "72-hour last click, as documented."],
+      ["Do you need it per campaign or only per channel?", "scope", 8, "Per channel, with the 5 worst campaigns listed."],
+      ["Can I round everything to crores?", "bad", -4, "Lakhs are clearer at this size."],
+      ["Should I include website sessions in ROI?", "bad", -8, "Sessions aren't money. Keep them out."],
+      ["Can I skip QA to deliver faster?", "bad", -10, "No. Finance numbers must reconcile."],
+    ] },
+];
+let stkCur = null, stkSel = new Set(), stkDone = false;
+const STK_MAX = 6;
+function renderStakeholder() {
+  const root = document.getElementById("stk-root"); if (!root) return;
+  const st = simState();
+  if (!stkCur) {
+    root.innerHTML = `<div class="js-grid">${STAKEHOLDERS.map((x, i) => { const b = st.stk[x.id] ? st.stk[x.id].best : null; return `<button class="card js-case" data-stk="${x.id}">
+      <div class="js-case-top"><span class="js-case-n">Request ${i + 1}</span>${b != null ? `<span class="js-best ${b >= 70 ? "ok" : ""}">Best ${b}%</span>` : ""}</div>
+      <h4>💬 “${esc(x.ask)}”</h4><p>${esc(x.who)}</p><span class="js-open">${b != null ? "Retry" : "Clarify the request"} →</span></button>`; }).join("")}</div>`;
+    root.querySelectorAll("[data-stk]").forEach(b => b.addEventListener("click", () => { stkCur = STAKEHOLDERS.find(x => x.id === b.dataset.stk); stkSel = new Set(); stkDone = false; renderStakeholder(); window.scrollTo({ top: 0 }); }));
+    return;
+  }
+  const x = stkCur; const order = x.qs.map((q, i) => i).sort((a, b) => ((a * 7 + 3) % x.qs.length) - ((b * 7 + 3) % x.qs.length));
+  root.innerHTML = `<button class="btn-outline js-back" id="stk-back">← All requests</button>
+    <div class="card js-alert stk"><div class="js-alert-h"><span>💬 NEW REQUEST</span><small>${esc(x.who)}</small></div><div class="js-msg"><p class="js-big">“${esc(x.ask)}”</p></div></div>
+    <h4 class="js-step">Before you build anything, pick up to ${STK_MAX} clarifying questions <small>(${stkSel.size}/${STK_MAX} chosen)</small></h4>
+    <div class="js-opts">${order.map(i => { const q = x.qs[i]; const on = stkSel.has(i); const cls = stkDone ? (q[1] === "bad" ? (on ? "false" : "") : (on ? "hit" : "")) : ""; return `<label class="js-opt ${cls}"><input type="checkbox" data-q="${i}" ${on ? "checked" : ""} ${stkDone ? "disabled" : ""}> ${esc(q[0])}${stkDone && on ? `<span class="js-reply-a">↳ ${esc(q[3])}</span>` : ""}</label>`; }).join("")}</div>
+    <div class="js-actions">${stkDone ? `<button class="btn-outline" id="stk-retry">↺ Try again</button>` : `<button class="btn-blue" id="stk-submit">Send questions</button>`}</div><div id="stk-result"></div>`;
+  root.querySelector("#stk-back").addEventListener("click", () => { stkCur = null; renderStakeholder(); });
+  root.querySelectorAll("[data-q]").forEach(c => c.addEventListener("change", () => { const i = +c.dataset.q; if (c.checked) { if (stkSel.size >= STK_MAX) { c.checked = false; return; } stkSel.add(i); } else stkSel.delete(i); renderStakeholder(); }));
+  const rt = root.querySelector("#stk-retry"); if (rt) rt.addEventListener("click", () => { stkSel = new Set(); stkDone = false; renderStakeholder(); });
+  const sb = root.querySelector("#stk-submit"); if (sb) sb.addEventListener("click", () => {
+    if (stkSel.size < 3) { root.querySelector("#stk-result").innerHTML = `<div class="ed-msg bad">Ask at least 3 questions.</div>`; return; }
+    stkDone = true; const sel = [...stkSel].map(i => x.qs[i]);
+    const covered = STK_CATS.map(([c]) => sel.some(q => q[1] === c)); const bad = sel.filter(q => q[1] === "bad");
+    const raw = sel.reduce((a, q) => a + q[2], 0); const bestPossible = x.qs.filter(q => q[2] > 0).map(q => q[2]).sort((a, b) => b - a).slice(0, STK_MAX).reduce((a, b) => a + b, 0);
+    const sc = Math.max(0, Math.min(100, Math.round(raw / bestPossible * 70 + covered.filter(Boolean).length / STK_CATS.length * 30)));
+    const s = simState(); const prev = s.stk[x.id] || {}; s.stk[x.id] = { best: Math.max(prev.best || 0, sc), last: sc, tries: (prev.tries || 0) + 1, ts: Date.now() }; simSave(s);
+    renderStakeholder();
+    const good = sel.filter(q => q[1] !== "bad");
+    document.getElementById("stk-result").innerHTML = `<div class="card js-score"><div class="js-score-h"><span>Requirement quality</span><b>${sc}%</b></div>
+      <div class="js-cov">${STK_CATS.map(([c, n], i) => `<span class="${covered[i] ? "ok" : "no"}">${covered[i] ? "✓" : "✗"} ${n}</span>`).join("")}</div>
+      ${bad.length ? `<p>⚠ ${bad.length} question(s) didn't help scope the work: ${bad.map(q => `“${esc(q[0])}”`).join(", ")}.</p>` : `<p>✅ Every question you asked helped scope the work.</p>`}
+      ${covered.some(v => !v) ? `<p>Missing: ${STK_CATS.filter((c, i) => !covered[i]).map(c => c[1]).join(", ")}. Without these you'd have to guess.</p>` : ""}
+      <div class="js-tell"><b>📄 Your requirement brief (from the answers)</b><ul>${good.map(q => `<li><b>${esc(STK_CATS.find(c => c[0] === q[1])[1])}:</b> ${esc(q[3])}</li>`).join("")}</ul></div></div>`;
+    renderSimSummary();
+  });
+}
+
+/* ============================================================
+   Summary strip on every simulator page + progress hook
+   ============================================================ */
+function simScores() {
+  const s = simState(); const avg = (o, ids) => { const v = ids.map(i => o[i] && o[i].best).filter(x => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
+  return { inc: avg(s.inc, INCIDENTS.map(i => i.id)), incN: INCIDENTS.filter(i => s.inc[i.id]).length, brk: s.brk && s.brk.best != null ? s.brk.best : null, stk: avg(s.stk, STAKEHOLDERS.map(i => i.id)), stkN: STAKEHOLDERS.filter(i => s.stk[i.id]).length };
+}
+function renderSimSummary() {
+  const sc = simScores();
+  document.querySelectorAll(".js-summary").forEach(el => {
+    el.innerHTML = [["🚨 Incident Room", sc.inc, `${sc.incN}/${INCIDENTS.length} solved`, "incident"], ["🧩 Broken Dashboard", sc.brk, sc.brk != null ? "best score" : "not tried", "broken"], ["💬 Stakeholder", sc.stk, `${sc.stkN}/${STAKEHOLDERS.length} done`, "stakeholder"]]
+      .map(([t, v, sub, view]) => `<button class="js-sum" data-goto-sim="${view}"><span>${t}</span><b>${v != null ? v + "%" : "—"}</b><small>${sub}</small></button>`).join("");
+    el.querySelectorAll("[data-goto-sim]").forEach(b => b.addEventListener("click", () => switchView(b.dataset.gotoSim)));
+  });
+}
+function mergeObj(a, b) { let ch = false; for (const k in (b || {})) { if (!(k in a)) { a[k] = b[k]; ch = true; } else if (a[k] && typeof a[k] === "object" && b[k] && typeof b[k] === "object" && "ok" in b[k] && b[k].ok && !a[k].ok) { a[k] = b[k]; ch = true; } } return ch; }
+window.HUB_PROGRESS = {
+  collect() {
+    const st = loadState(), ed = edState(), sc = simScores(), sim = simState();
+    return { data: { state: st, solved: ed.solved || {}, sim }, summary: { pct: trackScores().overall, sql: Object.keys(ed.solved || {}).length, inc: sc.inc, brk: sc.brk, stk: sc.stk } };
+  },
+  apply(r) {
+    if (!r) return false; let ch = false;
+    const st = loadState(); Object.keys(r.state || {}).forEach(k => { if (!st[k] || typeof st[k] !== "object") { st[k] = r.state[k]; ch = true; } else if (mergeObj(st[k], r.state[k])) ch = true; });
+    if (ch) saveState(st);
+    const ed = edState(); let ech = false; Object.entries(r.solved || {}).forEach(([k, d]) => { if (!ed.solved[k]) { ed.solved[k] = d; ech = true; } }); if (ech) { edSave(ed); ch = true; }
+    const sim = simState(); let sch = false;
+    ["inc", "stk"].forEach(g => Object.entries((r.sim || {})[g] || {}).forEach(([k, v]) => { if (!sim[g][k] || (v.best || 0) > (sim[g][k].best || 0)) { sim[g][k] = v; sch = true; } }));
+    if (r.sim && r.sim.brk && (r.sim.brk.best || 0) > ((sim.brk && sim.brk.best) || 0)) { sim.brk = r.sim.brk; sch = true; }
+    if (sch) { lsSet(SIM_KEY, JSON.stringify(sim)); ch = true; }
+    return ch;
+  },
+  reportHead() { return ["Progress", "SQL solved", "Incidents", "Broken DB", "Stakeholder"]; },
+  reportCells(p) { const f = (v) => v == null ? "—" : v + "%"; return [f(p.pct), `${p.sql || 0}/${PRACTICE_PROBLEMS.length}`, f(p.inc), f(p.brk), f(p.stk)]; },
+  welcome(profile) { simProfile = profile; renderContinueBanner(); },
+};
+
+/* Welcome back banner (uses the existing "continue" banner on Home) */
+let simProfile = null;
+const _origContinue = renderContinueBanner;
+renderContinueBanner = function () {
+  const wrap = document.getElementById("continue-banner"); if (!wrap) return;
+  if (!simProfile || !simProfile.name) { _origContinue(); return; }
+  const s = loadState(); const next = JOURNEY.find(j => !s.journey[j.id]); const pct = trackScores().overall;
+  let last = null; try { last = JSON.parse(lsGet(LAST_VIEW_KEY)); } catch (e) {}
+  const first = String(simProfile.name).split(" ")[0];
+  wrap.style.display = "flex";
+  wrap.innerHTML = `<span class="continue-text">👋 Welcome back, <strong>${esc(first)}</strong>. You're <strong>${pct}%</strong> through the capstone.${next ? ` Next step: <strong>${esc(next.t)}</strong>` : " All journey steps done 🎉"}</span>
+    <div class="continue-actions">${next ? `<button type="button" class="continue-go" data-v="${next.go}">Continue project →</button>` : ""}${last && last.view && VIEW_LABELS[last.view] ? `<button type="button" class="continue-go alt" data-v="${last.view}">Back to ${esc(VIEW_LABELS[last.view])}</button>` : ""}<button type="button" class="continue-dismiss" title="Dismiss">✕</button></div>`;
+  wrap.querySelectorAll(".continue-go").forEach(b => b.addEventListener("click", () => switchView(b.dataset.v)));
+  wrap.querySelector(".continue-dismiss").addEventListener("click", () => { wrap.style.display = "none"; });
+};
+
+Object.assign(VIEW_LABELS, { incident: "Incident Room", broken: "Broken Dashboard Challenge", stakeholder: "Stakeholder Simulator" });
+document.addEventListener("DOMContentLoaded", () => { renderIncidentRoom(); renderBroken(); renderStakeholder(); renderSimSummary(); });

@@ -76,8 +76,9 @@
     const inp = ov.querySelector("#vk-name"); setTimeout(() => inp.focus(), 50);
     const go = () => {
       const n = inp.value.replace(/\s+/g, " ").trim();
+      const nn = n === n.toLowerCase() || n === n.toUpperCase() ? n.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : n;
       if (n.length < 2 || !/[a-zA-Zऀ-ॿ]/.test(n)) { ov.querySelector("#vk-err").textContent = "Please enter your real name (at least 2 letters)."; return; }
-      ov.remove(); cb(n, ov.querySelector("#vk-group") ? ov.querySelector("#vk-group").value : "");
+      ov.remove(); cb(nn, ov.querySelector("#vk-group") ? ov.querySelector("#vk-group").value : "");
     };
     ov.querySelector("#vk-go").addEventListener("click", go);
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
@@ -89,7 +90,7 @@
     const host = document.querySelector(".sidebar-progress"); if (!host) return;
     if (!c) { c = document.createElement("div"); c.id = "vk-chip"; c.className = "vk-chip"; host.parentNode.insertBefore(c, host); }
     c.innerHTML = `👋 <b>${esc(m.name)}</b>${m.group && m.group !== "Not in a group yet" ? ` · ${esc(m.group)}` : ""} <button type="button">change</button>`;
-    c.querySelector("button").onclick = () => askName(project, (n, g) => { m.name = n; m.group = g; saveMe(m); renderChip(m, project); ping(curView(), true); }, m);
+    c.querySelector("button").onclick = () => askName(project, (n, g) => { m.name = n; m.group = g; saveMe(m); renderChip(m, project); ping(curView(), true); lastPush = ""; progressSync(); }, m);
   }
 
   /* ---------- visit pings ---------- */
@@ -104,6 +105,31 @@
     const orig = window.switchView;
     if (typeof orig === "function" && !orig._vk) { const w = function (v) { const r = orig.apply(this, arguments); setTimeout(() => ping(v), 50); return r; }; w._vk = true; window.switchView = w; }
     document.addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-view],[data-goto]"); if (b) setTimeout(() => ping(curView()), 120); });
+  }
+
+  /* ---------- cloud progress (site provides window.HUB_PROGRESS) ---------- */
+  const normKey = (n, g) => (String(n || "").toLowerCase() + "|" + String(g || "").toLowerCase()).replace(/\s+/g, " ").trim();
+  let pushTimer = null, lastPush = "";
+  function progressSync() {
+    const H = window.HUB_PROGRESS; if (!H || !profile || !profile.name) return;
+    try { if (H.welcome) H.welcome(profile); } catch (e) {}
+    const flag = KEY + "_restored_" + normKey(profile.name, profile.group);
+    post({ action: "restore", name: profile.name, group: profile.group || "" }).then(j => {
+      let changed = false; try { changed = !!(j && j.ok && j.data && H.apply(j.data)); } catch (e) {}
+      if (changed && !ss(flag)) { try { sessionStorage.setItem(flag, "1"); } catch (e) {} location.reload(); return; }
+      startPush();
+    }).catch(startPush);
+  }
+  function pushNow() {
+    const H = window.HUB_PROGRESS; if (!H || !profile || !profile.name) return;
+    let c; try { c = H.collect(); } catch (e) { return; }
+    const sig = JSON.stringify(c.data) + "|" + profile.name + "|" + (profile.group || ""); if (sig === lastPush) return; lastPush = sig;
+    fetch(API, { method: "POST", keepalive: true, body: JSON.stringify({ action: "progress", name: profile.name, group: profile.group || "", data: c.data, summary: c.summary }) }).catch(() => { lastPush = ""; });
+  }
+  function startPush() {
+    if (pushTimer) return; pushNow(); pushTimer = setInterval(pushNow, 15000);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") pushNow(); });
+    window.addEventListener("hub-progress", () => setTimeout(pushNow, 300));
   }
 
   /* ---------- real counter in the hero ---------- */
@@ -127,6 +153,8 @@
       (s.days || []).forEach(d => m.days.add(d)); (s.pages || []).forEach(([p, n]) => m.pages[p] = (m.pages[p] || 0) + n);
       if (!m.batch && s.batch) m.batch = s.batch;
     });
+    const P = report.progress || {};
+    Object.values(by).forEach(m => { m.prog = P[normKey(m.name, m.group)] || null; });
     return Object.values(by);
   }
   function renderReport() {
@@ -134,9 +162,12 @@
     const all = merged(); const today = report.today;
     const groups = ["All", ...[...new Set(all.map(s => s.group || "—"))].sort()];
     let rows = all.filter(s => (!rState.q || s.name.toLowerCase().includes(rState.q.toLowerCase())) && (rState.group === "All" || (s.group || "—") === rState.group) && (!rState.today || s.days.has(today)));
-    rows.sort(rState.sort === "name" ? (a, b) => a.name.localeCompare(b.name) : rState.sort === "views" ? (a, b) => b.views - a.views : rState.sort === "days" ? (a, b) => b.days.size - a.days.size : (a, b) => b.last - a.last);
+    rows.sort(rState.sort === "name" ? (a, b) => a.name.localeCompare(b.name) : rState.sort === "views" ? (a, b) => b.views - a.views : rState.sort === "days" ? (a, b) => b.days.size - a.days.size : rState.sort === "prog" ? (a, b) => ((b.prog && b.prog.pct) || 0) - ((a.prog && a.prog.pct) || 0) : (a, b) => b.last - a.last);
     const daily = report.daily || []; const mx = Math.max(1, ...daily.map(d => d.unique));
     const todayN = all.filter(s => s.days.has(today)).length;
+    const hasProg = all.some(s => s.prog);
+    const pc = (s) => s.prog ? (window.HUB_PROGRESS && window.HUB_PROGRESS.reportCells ? window.HUB_PROGRESS.reportCells(s.prog) : [`${s.prog.pct || 0}%`]) : (window.HUB_PROGRESS && window.HUB_PROGRESS.reportHead ? window.HUB_PROGRESS.reportHead().map(() => "—") : ["—"]);
+    const ph = hasProg ? (window.HUB_PROGRESS && window.HUB_PROGRESS.reportHead ? window.HUB_PROGRESS.reportHead() : ["Progress"]) : [];
     box.innerHTML = `<div class="vk-head"><h3>👥 Student visits</h3><span>Only you can see this (trainer login). Updated ${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span></div>
       <div class="vk-tiles">
         <div class="vk-tile"><b>${fmtN(all.length)}</b><span>Students checked in by name</span></div>
@@ -150,15 +181,15 @@
       <div class="vk-tools">
         <input type="text" id="vk-q" placeholder="Search a student by name…" value="${esc(rState.q)}">
         <select id="vk-g">${groups.map(g => `<option ${g === rState.group ? "selected" : ""}>${esc(g)}</option>`).join("")}</select>
-        <select id="vk-s"><option value="last" ${rState.sort === "last" ? "selected" : ""}>Sort: last visit</option><option value="views" ${rState.sort === "views" ? "selected" : ""}>Sort: most page views</option><option value="days" ${rState.sort === "days" ? "selected" : ""}>Sort: most active days</option><option value="name" ${rState.sort === "name" ? "selected" : ""}>Sort: name</option></select>
+        <select id="vk-s"><option value="last" ${rState.sort === "last" ? "selected" : ""}>Sort: last visit</option><option value="views" ${rState.sort === "views" ? "selected" : ""}>Sort: most page views</option><option value="days" ${rState.sort === "days" ? "selected" : ""}>Sort: most active days</option><option value="name" ${rState.sort === "name" ? "selected" : ""}>Sort: name</option>${hasProg ? `<option value="prog" ${rState.sort === "prog" ? "selected" : ""}>Sort: progress</option>` : ""}</select>
         <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="vk-t" ${rState.today ? "checked" : ""}> Visited today only</label>
         <button id="vk-csv">⬇ Download CSV</button><button id="vk-ref">⟳ Refresh</button>
       </div>
-      <div class="vk-wrap"><table class="vk-table"><thead><tr><th>Student</th><th>Group</th><th>First visit</th><th>Last visit</th><th>Today</th><th>Active days</th><th>Page views</th><th>Most opened pages</th></tr></thead>
+      <div class="vk-wrap"><table class="vk-table"><thead><tr><th>Student</th><th>Group</th><th>First visit</th><th>Last visit</th><th>Today</th><th>Active days</th><th>Page views</th>${ph.map(h => `<th>${esc(h)}</th>`).join("")}<th>Most opened pages</th></tr></thead>
       <tbody>${rows.length ? rows.map(s => `<tr><td><b>${esc(s.name)}</b>${s.devices > 1 ? `<div class="vk-pages">${s.devices} devices</div>` : ""}</td><td>${esc(s.group || "—")}</td><td>${dt(s.first)}</td><td>${dt(s.last)}<div class="vk-pages">on ${esc(pl(s.lastPage))}</div></td>
-        <td>${s.days.has(today) ? '<span class="vk-yes">✓</span>' : '<span class="vk-no">—</span>'}</td><td class="n">${s.days.size}</td><td class="n">${fmtN(s.views)}</td>
+        <td>${s.days.has(today) ? '<span class="vk-yes">✓</span>' : '<span class="vk-no">—</span>'}</td><td class="n">${s.days.size}</td><td class="n">${fmtN(s.views)}</td>${hasProg ? pc(s).map(v => `<td class="n">${v}</td>`).join("") : ""}
         <td class="vk-pages">${Object.entries(s.pages).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([p, n]) => `${esc(pl(p))} (${n})`).join(", ")}</td></tr>`).join("")
-        : `<tr><td colspan="8" style="color:var(--ink-muted,#888);padding:16px;">No students match. Students appear here after they open the site and enter their name.</td></tr>`}</tbody></table></div>`;
+        : `<tr><td colspan="${8 + ph.length}" style="color:var(--ink-muted,#888);padding:16px;">No students match. Students appear here after they open the site and enter their name.</td></tr>`}</tbody></table></div>`;
     const re = () => renderReport();
     box.querySelector("#vk-q").addEventListener("input", (e) => { rState.q = e.target.value; const pos = e.target.selectionStart; re(); const n = document.getElementById("vk-q"); n.focus(); n.setSelectionRange(pos, pos); });
     box.querySelector("#vk-g").addEventListener("change", (e) => { rState.group = e.target.value; re(); });
@@ -167,8 +198,9 @@
     box.querySelector("#vk-ref").addEventListener("click", loadReport);
     box.querySelector("#vk-csv").addEventListener("click", () => {
       const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
-      const lines = [["Name", "Group", "Batch", "First visit", "Last visit", "Visited today", "Active days", "Page views", "Days visited"].map(q).join(",")]
-        .concat(rows.map(s => [s.name, s.group, s.batch, dt(s.first), dt(s.last), s.days.has(today) ? "Yes" : "No", s.days.size, s.views, [...s.days].sort().join(" ")].map(q).join(",")));
+      const strip = (v) => String(v).replace(/<[^>]*>/g, "");
+      const lines = [["Name", "Group", "Batch", "First visit", "Last visit", "Visited today", "Active days", "Page views", ...ph, "Days visited"].map(q).join(",")]
+        .concat(rows.map(s => [s.name, s.group, s.batch, dt(s.first), dt(s.last), s.days.has(today) ? "Yes" : "No", s.days.size, s.views, ...(hasProg ? pc(s).map(strip) : []), [...s.days].sort().join(" ")].map(q).join(",")));
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv" }));
       a.download = `student-visits-${KEY}-${today}.csv`; document.body.appendChild(a); a.click(); a.remove();
     });
@@ -196,7 +228,7 @@
       fetch(API + "?t=" + Date.now(), { cache: "no-store" }).then(r => r.json()).catch(() => null).then(sched => {
         const project = activeProject(sched);
         profile = me(); if (project && !profile.batch) { profile.batch = project.code; saveMe(profile); }
-        const begin = () => { renderChip(profile, project); hookViews(); ping(curView(), true); setTimeout(() => fetch(API + "?stats=1&t=" + Date.now()).then(r => r.json()).then(renderCounter).catch(() => {}), 1500); };
+        const begin = () => { renderChip(profile, project); hookViews(); ping(curView(), true); progressSync(); setTimeout(() => fetch(API + "?stats=1&t=" + Date.now()).then(r => r.json()).then(renderCounter).catch(() => {}), 1500); };
         if (profile.name) begin();
         else askName(project, (n, g) => { profile.name = n; profile.group = g; saveMe(profile); begin(); });
       });

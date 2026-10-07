@@ -11,6 +11,9 @@
  *    GET  /api/schedule?stats=1                      → {unique, today, views}  (public)
  *    POST {action:"visit", vid, name, group, batch, page}   (students, no PIN)
  *    POST {action:"report", pin, days}               → per-student visits + daily chart (trainer only)
+ * 3) Cloud progress (student name + group is the key, so a new device can restore it)
+ *    POST {action:"progress", name, group, data, summary}   (students, no PIN)
+ *    POST {action:"restore", name, group}            → saved progress or null
  *
  * Trainer PIN: optional env var ADMIN_PIN (default "excelr2026"); after "Change PIN" on the site its
  * hash lives in Redis. 8 wrong PINs in 15 minutes locks PIN actions for 15 minutes.
@@ -101,6 +104,18 @@ module.exports = async function handler(req, res) {
       return send(res, 200, { ok: true });
     }
 
+    // ---------- cloud progress (no PIN) ----------
+    if (b.action === "progress" || b.action === "restore") {
+      const name = clean(b.name, 48), group = clean(b.group, 40);
+      if (name.length < 2) return send(res, 400, { ok: false, error: "Name required" });
+      const key = (name.toLowerCase() + "|" + group.toLowerCase()).replace(/\s+/g, " ");
+      if (b.action === "restore") { const v = await redis(env, "HGET", PFX + "prog", key); return send(res, 200, { ok: true, data: v ? JSON.parse(v) : null }); }
+      const data = JSON.stringify(b.data || {}), sum = JSON.stringify(Object.assign({}, b.summary || {}, { ts: Date.now(), name, group }));
+      if (data.length > 60000 || sum.length > 2000) return send(res, 413, { ok: false, error: "Progress too large" });
+      await pipe(env, [["HSET", PFX + "prog", key, data], ["HSET", PFX + "progsum", key, sum]]);
+      return send(res, 200, { ok: true });
+    }
+
     const c = await checkPin(env, b.pin);
     if (!c.ok) return send(res, c.code, { ok: false, error: c.error });
 
@@ -135,7 +150,10 @@ module.exports = async function handler(req, res) {
         return { vid: id, name: h.name || "", group: h.group || "", batch: h.batch || "", first: +h.first || 0, last: +h.last || 0, views: +h.views || 0,
                  days: (rows[2 * i + 1] || []).sort(), lastPage: h.lastPage || "", pages: pages.slice(0, 6) };
       }).filter(s => s.name);
-      return send(res, 200, { ok: true, today: istDay(now), unique: +head[1] || 0, views: +head[2] || 0, daily, students });
+      const ps = await redis(env, "HGETALL", PFX + "progsum"); const progress = {};
+      if (Array.isArray(ps)) for (let k = 0; k < ps.length; k += 2) { try { progress[ps[k]] = JSON.parse(ps[k + 1]); } catch (e) {} }
+      else if (ps) for (const k in ps) { try { progress[k] = JSON.parse(ps[k]); } catch (e) {} }
+      return send(res, 200, { ok: true, today: istDay(now), unique: +head[1] || 0, views: +head[2] || 0, daily, students, progress });
     }
     return send(res, 400, { ok: false, error: "Unknown action" });
   } catch (e) {
