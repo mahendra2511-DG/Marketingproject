@@ -2428,3 +2428,6 @@ body.dark-mode .sch-publish { background: #0F2A1E; border-color: #14532D; }
 .hf-li.past span:first-child { color: #15803D; } .hf-li.next span:first-child, .hf-li.today span:first-child { color: #C2410C; }
 .sch-grid input.search-input, .sch-grid input[type="date"] { height: auto !important; min-height: 0; padding: 8px 10px; flex: none; font-size: 13px; }
 .sch-grid label { justify-content: flex-end; }
+.sch-live { color: #137A6A !important; font-weight: 600; }
+.sch-sync { font-size: 13px; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: #F0FAF7; border: 1px solid #BFE6DD; color: #137A6A; }
+body.dark-mode .sch-sync { background: #0F2A1E; border-color: #14532D; color: #4ADE80; }

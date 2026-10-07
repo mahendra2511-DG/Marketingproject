@@ -2701,6 +2701,49 @@ const SCH_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const SCH_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const SCH_DRAFT = "axon_mkt_schedule_draft_v1", SCH_UNLOCK = "axon_mkt_schedule_unlocked", SCH_VIEW = "axon_mkt_schedule_view";
 let schEditCode = null;
+/* Live sync. schedule-config.js: "auto" = use this site's own /api/schedule (Vercel + Upstash Redis) when it is
+   connected, otherwise fall back to project-schedule.js. A full URL (e.g. a Google Apps Script web app) also works. */
+const SCH_CFG = String(window.PROJECT_SCHEDULE_API || "").trim();
+const SCH_AUTO = SCH_CFG.toLowerCase() === "auto";
+let SCH_API = SCH_AUTO ? "" : SCH_CFG;
+const SCH_PIN = "axon_mkt_schedule_pin";
+let schRemote = null, schSyncMsg = "", schSaveTimer = null, schLoaded = !SCH_API;
+/* "auto": probe /api/schedule once; switch to live mode only if the server answers with a configured database. */
+function schProbe() {
+  if (!SCH_AUTO || !/^https?:$/.test(location.protocol)) return;
+  fetch("api/schedule?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || j.configured === false || !Array.isArray(j.projects)) return;   // not set up → keep file mode
+    SCH_API = "api/schedule";
+    if (schIsTrainer()) { try { sessionStorage.removeItem(SCH_UNLOCK); } catch (e) {} }  // re-login against the server PIN
+    schRemote = j.projects.length ? j : null; schLoaded = true;
+    renderSchedule(); renderHeroSchedule();
+    setInterval(() => { if (!schIsTrainer()) schLoadRemote(true); }, 60000);
+  }).catch(() => {});
+}
+function schApi(payload) {
+  return fetch(SCH_API, { method: "POST", body: JSON.stringify(payload) }).then(r => r.json());
+}
+function schLoadRemote(silent) {
+  if (!SCH_API) return Promise.resolve();
+  return fetch(SCH_API + (SCH_API.includes("?") ? "&" : "?") + "t=" + Date.now()).then(r => r.json()).then(j => {
+    if (schIsTrainer() && schSaveTimer) return;                 // don't overwrite unsaved trainer edits
+    schRemote = j && j.projects && j.projects.length ? j : null; schLoaded = true;
+    renderSchedule(); renderHeroSchedule();
+  }).catch(() => { schLoaded = true; if (!silent) { schSyncMsg = "⚠ Could not load the live schedule. Showing the last published file."; renderSchedule(); } });
+}
+function schPushRemote(d) {
+  schRemote = d; schSyncMsg = "⏳ Saving…"; schShowSync();
+  clearTimeout(schSaveTimer);
+  schSaveTimer = setTimeout(() => {
+    let pin = ""; try { pin = sessionStorage.getItem(SCH_PIN) || ""; } catch (e) {}
+    schApi({ action: "save", pin, data: d }).then(j => {
+      schSaveTimer = null;
+      schSyncMsg = j.ok ? `✅ Saved ${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · students see it now (on refresh)` : "⚠ Not saved: " + (j.error || "error");
+      schShowSync();
+    }).catch(() => { schSaveTimer = null; schSyncMsg = "⚠ Not saved: no internet or server not ready. Try again."; schShowSync(); });
+  }, 700);
+}
+function schShowSync() { const e = document.getElementById("sch-sync"); if (e) e.textContent = schSyncMsg; }
 
 /* ---------- tiny SHA-256 (works on file:// too) ---------- */
 function sha256(str) {
@@ -2732,15 +2775,22 @@ function schFromHash() {
   const m = location.hash.match(/schedule=([A-Za-z0-9_\-]+)/); if (!m) return null;
   try { return JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { return null; }
 }
-function schIsTrainer() { try { return sessionStorage.getItem(SCH_UNLOCK) === "1"; } catch (e) { return false; } }
+function schIsTrainerX() { try { return sessionStorage.getItem(SCH_UNLOCK) === "1"; } catch (e) { return false; } }
+function schIsTrainer() { return schIsTrainerX(); }
 function schDraft() { try { const d = JSON.parse(lsGet(SCH_DRAFT)); return d && d.projects ? d : null; } catch (e) { return null; } }
 function schData() {
+  if (SCH_API) {
+    if (schIsTrainer()) { if (!schRemote) schRemote = schPublished(); return schRemote; }
+    const base = schRemote ? schClone(schRemote) : schPublished(); const h = schFromHash();
+    if (h && h.code) { base.projects = base.projects.filter(x => x.code !== h.code).concat([h]); base.active = h.code; }
+    return base;
+  }
   if (schIsTrainer()) return schDraft() || schPublished();
   const pub = schPublished(); const h = schFromHash();
   if (h && h.code) { pub.projects = pub.projects.filter(p => p.code !== h.code).concat([h]); pub.active = h.code; }
   return pub;
 }
-function schSaveDraft(d) { d.updated = new Date().toISOString(); lsSet(SCH_DRAFT, JSON.stringify(d)); }
+function schSaveDraft(d) { d.updated = new Date().toISOString(); if (SCH_API) { schPushRemote(d); return; } lsSet(SCH_DRAFT, JSON.stringify(d)); }
 function schCurrent(d) {
   let code = schIsTrainer() ? schEditCode : null;
   if (!code) { try { code = lsGet(SCH_VIEW); } catch (e) {} }
@@ -2826,7 +2876,8 @@ function schAdminHtml(d, p) {
       ${SCH_COLS.map(([key]) => `<td>${stSel(g.id, key, st[key] || "pending")}${key === "sqlqa" ? sel("", [["", "Week?"], ["tableau", "Tableau wk"], ["powerbi", "Power BI wk"]], st.sqlqaWeek || "").replace('<select id=""', `<select data-qaw="${g.id}"`) : ""}</td>`).join("")}
       <td><input data-gnote="${g.id}" value="${esc(st.note || "")}" placeholder="Note"></td><td><button class="sch-del" data-gdel="${g.id}" title="Remove group">✕</button></td></tr>`; }).join("");
   return `<div class="card sch-admin">
-    <div class="sch-admin-head"><h3>🔓 Trainer controls</h3><span>Changes save on this device instantly. Students see them only after you <strong>Publish</strong>.</span></div>
+    <div class="sch-admin-head"><h3>🔓 Trainer controls</h3>${SCH_API ? `<span class="sch-live">☁ Live sync ON: every change saves automatically and students see it.</span>` : `<span>Changes save on this device. Students see them only after you <strong>Publish</strong> (or set up Live sync).</span>`}</div>
+    ${SCH_API ? `<div class="sch-sync" id="sch-sync">${esc(schSyncMsg || "☁ Connected")}</div>` : ""}
     <div class="sch-grid">
       <label>Project code<input class="search-input" id="sch-code" value="${esc(p.code)}"></label>
       <label>Project name<input class="search-input" id="sch-name" value="${esc(p.name || "")}"></label>
@@ -2839,8 +2890,8 @@ function schAdminHtml(d, p) {
     <details class="sch-over"><summary>Change a single presentation date (holiday, reschedule)</summary><div class="sch-grid">${SCH_STAGES.filter(s => s.week > 0).map(s => `<label>${s.t}<input type="date" data-over="${s.key}" value="${ds[s.key]}"></label>`).join("")}<button class="btn-outline" id="sch-clearover">Reset to weekly dates</button></div></details>
     <h4 style="margin:16px 0 8px;">Groups & presentation status</h4>
     <div class="table-scroll"><table class="dtable sch-edit"><thead><tr><th>Group</th>${SCH_COLS.map(([, l]) => `<th>${l}</th>`).join("")}<th>Note</th><th></th></tr></thead><tbody>${groups}</tbody></table></div>
-    <div class="sch-row"><button class="btn-outline" id="sch-addg">+ Add group</button><button class="btn-outline" id="sch-reset">↺ Reset all statuses</button><button class="btn-outline" id="sch-newp">+ New project</button><button class="btn-outline" id="sch-delp">🗑 Delete project</button><button class="btn-outline" id="sch-pin">Change PIN</button><button class="btn-outline" id="sch-discard">Load live file (discard draft)</button></div>
-    <div class="sch-publish">
+    <div class="sch-row"><button class="btn-outline" id="sch-addg">+ Add group</button><button class="btn-outline" id="sch-reset">↺ Reset all statuses</button><button class="btn-outline" id="sch-newp">+ New project</button><button class="btn-outline" id="sch-delp">🗑 Delete project</button><button class="btn-outline" id="sch-pin">Change PIN</button>${SCH_API ? `<button class="btn-outline" id="sch-reload">⟳ Reload from server</button>` : `<button class="btn-outline" id="sch-discard">Load live file (discard draft)</button>`}</div>
+    <div class="sch-publish" ${SCH_API ? 'style="display:none"' : ""}>
       <div><strong>Publish to students</strong><p>1) Download <code>project-schedule.js</code> → 2) replace that file in the site folder (GitHub / Vercel / hosting) → students see the update. Or share a link right now (works for the selected project).</p></div>
       <div class="sch-row"><button class="btn-blue" id="sch-download">⬇ Download project-schedule.js</button><button class="btn-dark" id="sch-link">🔗 Copy student link</button></div>
     </div></div>`;
@@ -2853,10 +2904,19 @@ function schBind(d, p) {
   const un = $("sch-unlock");
   if (un) un.addEventListener("click", () => {
     const pin = prompt("Trainer PIN"); if (pin === null) return;
+    if (SCH_API) {
+      schApi({ action: "check", pin }).then(j => {
+        if (!j.ok) { alert(j.error || "Wrong PIN."); return; }
+        try { sessionStorage.setItem(SCH_UNLOCK, "1"); sessionStorage.setItem(SCH_PIN, pin); } catch (e) {}
+        if (!schRemote) { schRemote = schDraft() || schPublished(); schSaveDraft(schRemote); }   // first live login: carry over the details already filled on this device
+        schSyncMsg = "☁ Connected · changes save automatically"; renderSchedule();
+      }).catch(() => alert("Could not reach the live sync server. Check your internet and try again."));
+      return;
+    }
     if (schHash(pin) === schPublished().pinHash || (schDraft() && schHash(pin) === schDraft().pinHash)) { try { sessionStorage.setItem(SCH_UNLOCK, "1"); } catch (e) {} if (!schDraft()) schSaveDraft(schPublished()); renderSchedule(); }
     else alert("Wrong PIN.");
   });
-  const lk = $("sch-lock"); if (lk) lk.addEventListener("click", () => { try { sessionStorage.removeItem(SCH_UNLOCK); } catch (e) {} schEditCode = null; renderSchedule(); renderHeroSchedule(); });
+  const lk = $("sch-lock"); if (lk) lk.addEventListener("click", () => { try { sessionStorage.removeItem(SCH_UNLOCK); sessionStorage.removeItem(SCH_PIN); } catch (e) {} schEditCode = null; renderSchedule(); renderHeroSchedule(); });
   if (!schIsTrainer()) return;
   const cr = $("sch-create"); if (cr) cr.addEventListener("click", () => { const c = ($("sch-newcode").value || "").trim(); if (!c) return; d.projects.push(schNewProject(c)); d.active = c; schEditCode = c; save(); });
   if (!p) return;
@@ -2880,7 +2940,9 @@ function schBind(d, p) {
   on("sch-reset", "click", () => { if (confirm("Reset every group's status to Pending for " + p.code + "?")) { p.status = {}; save(); } });
   on("sch-newp", "click", () => { const c = (prompt("New project code (e.g. MKT-NOV26-B2)") || "").trim(); if (!c) return; if (d.projects.some(x => x.code === c)) { alert("That code already exists."); return; } d.projects.push(schNewProject(c)); schEditCode = c; d.active = c; save(); });
   on("sch-delp", "click", () => { if (!confirm("Delete project " + p.code + "?")) return; d.projects = d.projects.filter(x => x !== p); schEditCode = null; d.active = d.projects[0] ? d.projects[0].code : ""; save(); });
-  on("sch-pin", "click", () => { const a = prompt("New trainer PIN (min 4 characters)"); if (!a || a.length < 4) return; if (prompt("Type the new PIN again") !== a) { alert("PINs don't match."); return; } d.pinHash = schHash(a); save(); alert("PIN changed. Download and upload project-schedule.js so the new PIN applies on the live site."); });
+  on("sch-pin", "click", () => { const a = prompt("New trainer PIN (min 4 characters)"); if (!a || a.length < 4) return; if (prompt("Type the new PIN again") !== a) { alert("PINs don't match."); return; }
+    if (SCH_API) { let pin = ""; try { pin = sessionStorage.getItem(SCH_PIN) || ""; } catch (e) {} schApi({ action: "setpin", pin, newPin: a }).then(j => { if (j.ok) { try { sessionStorage.setItem(SCH_PIN, a); } catch (e) {} alert("PIN changed on the server. Use the new PIN from now on."); } else alert(j.error || "Could not change PIN."); }).catch(() => alert("Could not reach the server.")); return; } d.pinHash = schHash(a); save(); alert("PIN changed. Download and upload project-schedule.js so the new PIN applies on the live site."); });
+  on("sch-reload", "click", () => { schRemote = null; schLoadRemote(); });
   on("sch-discard", "click", () => { if (!confirm("Discard your unpublished changes on this device and load the live project-schedule.js?")) return; lsSet(SCH_DRAFT, JSON.stringify(schPublished())); schEditCode = null; renderSchedule(); renderHeroSchedule(); });
   on("sch-download", "click", () => {
     d.active = p.code; const out = schClone(d); out.updated = new Date().toISOString();
@@ -2922,4 +2984,6 @@ function renderHeroSchedule() {
 document.addEventListener("DOMContentLoaded", () => {
   renderSchedule(); renderHeroSchedule();
   if (schFromHash()) setTimeout(() => switchView("schedule"), 50);
+  if (SCH_API) { schLoadRemote(); setInterval(() => { if (!schIsTrainer()) schLoadRemote(true); }, 60000); }
+  else schProbe();
 });
