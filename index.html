@@ -9,6 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache">
 <link rel="stylesheet" href="styles.css?v=20261008-sim">
 <style id="soc-ico-css">.soc-ico{width:17px;height:17px;flex:none;display:inline-block;vertical-align:-3px;margin-right:7px}#side-youtube,#side-medium,#side-linkedin,#social-youtube,#social-medium,#social-linkedin{display:inline-flex;align-items:center}.cmdk-fab-hint{display:none!important}a>.soc-ico{margin-right:5px}a:has(>.soc-ico){display:inline-flex;align-items:center}</style>
+<style id="rv-nav-css">#nav button .nav-ai{margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.04em;padding:1px 6px;border-radius:5px;background:#7C3AED;color:#fff}#nav button[data-view="review"] .lbl{line-height:1.25}</style>
 </head>
 <body>
 
@@ -58,6 +59,7 @@
 
       <div class="nav-group-label">Dashboards</div>
       <button data-view="dashboards"><span class="ic">🖼️</span><span class="lbl">Dashboard Gallery</span></button>
+      <button data-view="review"><span class="ic">🧪</span><span class="lbl">Mahendra Dashboard Evaluation Feedback</span><span class="nav-ai">AI</span></button>
 
       <div class="nav-group-label">QA</div>
       <button data-view="qa"><span class="ic">🧪</span><span class="lbl">QA &amp; Reconciliation</span></button>
@@ -356,6 +358,10 @@
 </section>
 
 <!-- ===================== MY PROGRESS ===================== -->
+<section class="view" id="view-review">
+  <div class="wrap"><div id="rv-root"></div></div>
+</section>
+
 <section class="view" id="view-progress">
   <div class="wrap">
     <div class="section-head">
@@ -1064,9 +1070,11 @@
 <script>document.write('<script src="schedule-config.js?t=' + Date.now() + '"><\/script>');</script>
 <script>document.write('<script src="project-schedule.js?t=' + Date.now() + '"><\/script>');</script>
 <script src="assets/practice-db.js?v=20261008-sim"></script>
-<script src="app.js?v=20261015-b"></script>
+<script src="app.js?v=20261018-rv"></script>
 <script>window.VISIT_KEY = "axon_mkt";</script>
 <script src="visit-kit.js?v=20261015-b"></script>
 <script src="ai-kit.js?v=20261015-ai2" defer></script>
+<script src="review-config.js?v=20261018-rv"></script>
+<script src="review-kit.js?v=20261018-wf" defer></script>
 </body>
 </html>
