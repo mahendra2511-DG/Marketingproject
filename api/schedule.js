@@ -41,16 +41,54 @@ function redisEnv() {
     const k = Object.keys(e).find(k => /(^|_)(REDIS|KV)_URL$/.test(k) && /^rediss?:\/\/[^@]+@[^:\/]+\.upstash\.io/.test(e[k] || ""));
     if (k) { try { const u = new URL(e[k]); url = "https://" + u.hostname; token = decodeURIComponent(u.password); } catch (x) {} }
   }
-  return url && token ? { url: url.replace(/\/$/, ""), token } : null;
+  if (url && token) return { url: url.replace(/\/$/, ""), token };
+  // Redis Cloud (or any normal Redis): redis://user:password@host:port  (rediss:// = TLS). Vercel sets REDIS_URL.
+  const rk = ["REDIS_URL", ...Object.keys(e).filter(k => /(^|_)REDIS_URL$/.test(k))].find(k => /^rediss?:\/\//.test(e[k] || ""));
+  if (rk) { try { const u = new URL(e[rk]); return { tcp: true, tls: u.protocol === "rediss:", host: u.hostname, port: +u.port || 6379, user: decodeURIComponent(u.username || ""), pass: decodeURIComponent(u.password || ""), db: +(u.pathname || "").slice(1) || 0 }; } catch (x) {} }
+  return null;
+}
+/* ---- tiny Redis client (RESP protocol over TCP/TLS), used only for Redis Cloud; no npm package needed ---- */
+const net = require("net"), tls = require("tls");
+const enc = (args) => { let o = "*" + args.length + "\r\n"; for (const a of args) { const b = Buffer.from(String(a), "utf8"); o += "$" + b.length + "\r\n" + b.toString("utf8") + "\r\n"; } return o; };
+function parseResp(buf, i) {            // → [value, nextIndex] or null if the buffer is not complete yet
+  if (i >= buf.length) return null;
+  const nl = buf.indexOf("\r\n", i); if (nl < 0) return null;
+  const t = String.fromCharCode(buf[i]), line = buf.toString("utf8", i + 1, nl);
+  if (t === "+") return [line, nl + 2];
+  if (t === "-") return [{ __err: line }, nl + 2];
+  if (t === ":") return [Number(line), nl + 2];
+  if (t === "$") { const n = Number(line); if (n < 0) return [null, nl + 2]; if (buf.length < nl + 2 + n + 2) return null; return [buf.toString("utf8", nl + 2, nl + 2 + n), nl + 2 + n + 2]; }
+  if (t === "*") { const n = Number(line); if (n < 0) return [null, nl + 2]; const out = []; let j = nl + 2; for (let k = 0; k < n; k++) { const v = parseResp(buf, j); if (!v) return null; out.push(v[0]); j = v[1]; } return [out, j]; }
+  throw new Error("Bad reply from Redis");
+}
+function tcpRun(env, cmds) {             // one connection: AUTH (+SELECT) and all commands in a single write
+  return new Promise((resolve, reject) => {
+    const pre = []; if (env.pass) pre.push(env.user ? ["AUTH", env.user, env.pass] : ["AUTH", env.pass]); if (env.db) pre.push(["SELECT", env.db]);
+    const all = pre.concat(cmds), want = all.length; let buf = Buffer.alloc(0), got = [], pos = 0, done = false;
+    const opts = { host: env.host, port: env.port };
+    const sock = env.tls ? tls.connect(Object.assign({ servername: env.host }, opts)) : net.connect(opts);
+    const fin = (err, val) => { if (done) return; done = true; clearTimeout(t); try { sock.end(); sock.destroy(); } catch (e) {} err ? reject(err) : resolve(val); };
+    const t = setTimeout(() => fin(new Error("Redis timeout")), 9000);
+    sock.on(env.tls ? "secureConnect" : "connect", () => sock.write(all.map(enc).join("")));
+    sock.on("data", (d) => {
+      buf = Buffer.concat([buf, d]);
+      try { let v; while (got.length < want && (v = parseResp(buf, pos))) { got.push(v[0]); pos = v[1]; } } catch (e) { return fin(e); }
+      if (got.length >= want) { const a = got.slice(0, pre.length).find(x => x && x.__err); if (a) return fin(new Error("Redis login failed: " + a.__err)); fin(null, got.slice(pre.length)); }
+    });
+    sock.on("error", (e) => fin(new Error("Redis connection failed: " + e.message)));
+    sock.on("close", () => fin(new Error("Redis closed the connection")));
+  });
 }
 // names only (never values) of env vars that look database-related, to help debug "not connected"
 const envHints = () => Object.keys(process.env).filter(k => /KV|REDIS|UPSTASH/i.test(k)).sort();
 async function redis(env, ...cmd) {
+  if (env.tcp) { const [v] = await tcpRun(env, [cmd]); if (v && v.__err) throw new Error(v.__err); return v; }
   const r = await fetch(env.url, { method: "POST", headers: { Authorization: "Bearer " + env.token, "Content-Type": "application/json" }, body: JSON.stringify(cmd) });
   const j = await r.json(); if (j.error) throw new Error(j.error); return j.result;
 }
 async function pipe(env, cmds) {
   if (!cmds.length) return [];
+  if (env.tcp) { const out = []; for (let i = 0; i < cmds.length; i += 500) out.push(...await tcpRun(env, cmds.slice(i, i + 500))); return out.map(v => v && v.__err ? undefined : v); }
   const r = await fetch(env.url + "/pipeline", { method: "POST", headers: { Authorization: "Bearer " + env.token, "Content-Type": "application/json" }, body: JSON.stringify(cmds) });
   const j = await r.json(); if (!Array.isArray(j)) throw new Error(j.error || "pipeline failed");
   return j.map(x => x.result);
@@ -85,7 +123,7 @@ async function checkPin(env, pin) {
 
 module.exports = async function handler(req, res) {
   const env = redisEnv();
-  if (!env) return send(res, 200, { configured: false, error: "Database not connected. Vercel → Storage → connect Upstash Redis (tick Production), then redeploy.",
+  if (!env) return send(res, 200, { configured: false, error: "Database not connected. Vercel → Storage → connect Redis (Redis Cloud free) or Upstash Redis (tick Production), then redeploy.",
     envFound: envHints(), vercelEnv: process.env.VERCEL_ENV || "" });
   try {
     if (req.method === "GET") {
@@ -178,6 +216,9 @@ module.exports = async function handler(req, res) {
     }
     if (b.action === "report") {
       const days = Math.min(Math.max(+b.days || 30, 7), 120); const now = Date.now();
+      // a report costs ~100 + 2 × students database commands, so it is cached for 5 minutes (1 command when cached)
+      const RC = PFX + "repcache:" + days;
+      if (!b.fresh) { const c = await redis(env, "GET", RC); if (c) { try { return send(res, 200, Object.assign(JSON.parse(c), { cached: true })); } catch (e) {} } }
       const dayList = Array.from({ length: days }, (_, i) => istDay(now - (days - 1 - i) * 86400000));
       const head = await pipe(env, [["SMEMBERS", PFX + "students"], ["PFCOUNT", PFX + "v:all"], ["GET", PFX + "views"],
         ...dayList.map(d => ["PFCOUNT", PFX + "v:day:" + d]), ...dayList.map(d => ["GET", PFX + "views:day:" + d]), ...dayList.map(d => ["SCARD", PFX + "d:" + d])]);
@@ -194,7 +235,9 @@ module.exports = async function handler(req, res) {
       const ps = await redis(env, "HGETALL", PFX + "progsum"); const progress = {};
       if (Array.isArray(ps)) for (let k = 0; k < ps.length; k += 2) { try { progress[ps[k]] = JSON.parse(ps[k + 1]); } catch (e) {} }
       else if (ps) for (const k in ps) { try { progress[k] = JSON.parse(ps[k]); } catch (e) {} }
-      return send(res, 200, { ok: true, today: istDay(now), unique: +head[1] || 0, views: +head[2] || 0, daily, students, progress });
+      const out = { ok: true, today: istDay(now), unique: +head[1] || 0, views: +head[2] || 0, daily, students, progress, at: now };
+      try { const sv = JSON.stringify(out); if (sv.length < 900000) await redis(env, "SET", RC, sv, "EX", "300"); } catch (e) {}
+      return send(res, 200, out);
     }
     return send(res, 400, { ok: false, error: "Unknown action" });
   } catch (e) {
