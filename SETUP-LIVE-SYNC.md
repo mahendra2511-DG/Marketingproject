@@ -114,3 +114,31 @@ The site works with **either** Upstash Redis or a normal Redis database such as 
 
 A new database starts empty: create the project codes again (trainer login) and students log in once with their mobile number.
 If both Upstash and Redis are connected, Upstash is used.
+
+
+## Dexa Coach (added 23 Oct 2026)
+New sidebar page **Dexa Coach** (same free Groq key as Ask Dexa, nothing new to set up):
+- **Mock Viva**: Dexa asks questions about this project's KPIs/data/dashboards; the student answers (typing or 🎤) and gets a score /10 per answer with tips.
+- **Insight Coach**: checks if a finding is an observation, insight or recommendation and scores What / Why / So what / Now what.
+- **SQL Tutor**: in the SQL Practice Editor, a wrong answer shows "🦉 Ask Dexa why" with up to 3 hints. Dexa never writes the full query.
+- **My Certificate**: unlocks when the student is checked in, has solved at least half of the SQL problems, has a Dashboard Evaluation score of 70+ and the group's **Final** presentation is marked Done in the schedule. Change the rules with `window.COACH_CONFIG = {sqlPct: 50, reviewMin: 70, finalStage: "final"}` before coach-kit.js.
+- The best dashboard score, viva score and certificate ID go into the student's cloud progress, so they show in the site's trainer report and in ProjectVault.
+
+## Student accounts, password reset and certificates (added 24 Oct 2026)
+- Students **enroll** with name, email, mobile, password, project code and group. Mobile and email are unique (one account each).
+  Group can be "Group not assigned yet" until the **day after the project's kick-off**; after that, login asks for the group (required).
+- Students who checked in earlier (mobile only) are asked once to add their email and a password; their details are kept.
+- **Forgot password**: the student gets a 6-digit code by email (valid 15 minutes). Without email set up, the trainer resets it:
+  Trainer login → Project Schedule → "🎓 Certificates & student accounts" → **Reset** → give the temporary password to the student.
+- **Certificates**: when a project code is complete (every group's Final marked Done, or the Final date has passed), the same panel shows
+  **"Send certificates"**. One click issues a certificate to every student enrolled in that code and emails them a link.
+  Students download it in Dexa Coach → My Certificate (PNG or PDF).
+
+### Email setup (Resend, free: 100 emails/day, 3,000/month)
+1. Sign up at https://resend.com → **API Keys** → Create API key (Sending access) → copy it (starts with `re_`).
+2. **Domains** → Add domain (e.g. `crackanalytics.com`) → add the DNS records it shows (at your domain provider) → wait for "Verified".
+   Without a verified domain Resend only delivers to your own email address (useful for testing only).
+3. Vercel → this project → Settings → Environment Variables (Production):
+   - `RESEND_API_KEY` = the key
+   - `MAIL_FROM` = `Mahendra Singh <certificates@crackanalytics.com>` (any address on the verified domain)
+4. Redeploy. Use the same key and MAIL_FROM on every site.

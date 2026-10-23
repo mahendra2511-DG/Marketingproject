@@ -6,13 +6,16 @@
       <stop offset="0" stop-color="#A9AEB8"/><stop offset=".22" stop-color="#D3D7DE"/><stop offset=".62" stop-color="#F4F5F8"/><stop offset=".86" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E3E6EC"/></linearGradient>
     <linearGradient id="cc-fold" gradientUnits="userSpaceOnUse" x1="50" y1="62" x2="60" y2="70"><stop offset="0" stop-color="#1E1B4B" stop-opacity=".55"/><stop offset="1" stop-color="#1E1B4B" stop-opacity="0"/></linearGradient>
     <filter id="cc-sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="-1" dy="1" stdDeviation="1.6" flood-color="#000" flood-opacity=".25"/></filter>
+    <clipPath id="cc-k1"><circle cx="54" cy="97" r="12"/></clipPath><clipPath id="cc-k2"><circle cx="81" cy="97" r="12"/></clipPath>
   </defs>
   <path d="M100 0 V118 Q100 124 94 124 H0 Z" fill="url(#cc-bg)"/>
-  <!-- owl eyes with glasses peeking -->
-  <g>
+  <!-- owl eyes with glasses peeking (pupils follow the cursor, lids blink) -->
+  <g class="dx-eyes">
     <circle cx="54" cy="97" r="12" fill="#fff"/><circle cx="81" cy="97" r="12" fill="#fff"/>
-    <circle cx="56" cy="98.2" r="5.6" fill="#111827"/><circle cx="79" cy="98.2" r="5.6" fill="#111827"/>
-    <circle cx="58" cy="96.2" r="1.9" fill="#fff"/><circle cx="81" cy="96.2" r="1.9" fill="#fff"/>
+    <g class="dx-pu"><circle cx="54" cy="98" r="5.6" fill="#111827"/><circle cx="81" cy="98" r="5.6" fill="#111827"/>
+      <circle cx="56" cy="96" r="1.9" fill="#fff"/><circle cx="83" cy="96" r="1.9" fill="#fff"/></g>
+    <g clip-path="url(#cc-k1)"><rect class="dx-lid" x="42" y="85" width="24" height="25" fill="#7C4A1E"/></g>
+    <g clip-path="url(#cc-k2)"><rect class="dx-lid" x="69" y="85" width="24" height="25" fill="#7C4A1E"/></g>
     <circle cx="54" cy="97" r="13.3" fill="none" stroke="#0F172A" stroke-width="2.7"/><circle cx="81" cy="97" r="13.3" fill="none" stroke="#0F172A" stroke-width="2.7"/>
     <path d="M63.5 94.5 Q67.5 91.6 71.5 94.5" fill="none" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round"/>
   </g>

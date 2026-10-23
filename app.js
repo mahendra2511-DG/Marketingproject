@@ -2915,7 +2915,9 @@ function schBatchesHtml(d, cur) {
 function schMyCardHtml(p) {
   const m = schMe(); if (!m || schIsTrainer() || !p) return "";
   const g = schMyGroup(p);
-  if (!g) return `<div class="card sch-my">👋 <b>${esc(m.name)}</b> · ${esc(p.code)}. Your group (${esc(m.group || "none")}) is not in this project's group list, so your status can't be shown. Click <b>change</b> next to your name in the sidebar and pick your group.</div>`;
+  if (!g) return m.group
+    ? `<div class="card sch-my">👋 <b>${esc(m.name)}</b> · ${esc(p.code)}. Your group (${esc(m.group)}) is not in this project's group list, so your status can't be shown. Click <b>account</b> next to your name in the sidebar and pick your group.</div>`
+    : `<div class="card sch-my">👋 <b>${esc(m.name)}</b> · ${esc(p.code)}. Your group is not assigned yet. After the first meeting, pick your group: click <b>account</b> next to your name in the sidebar (the site also asks you when you log in).</div>`;
   const ds = schStageDates(p); const nx = schNext(p); const st = (p.status && p.status[g.id]) || {};
   const pend = SCH_COLS.filter(([k]) => schGroupStatus(p, g, k) !== "done").map(([, l]) => l);
   return `<div class="card sch-my"><div class="sch-my-h">👋 <b>${esc(m.name)}</b> · <b>${esc(g.name)}</b> · ${esc(p.code)} · every ${SCH_DAYS[p.presDay]}, ${esc(schTimeLabel(p))}</div>
@@ -3185,6 +3187,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (SCH_API) { schLoadRemote(); setInterval(() => { if (!schIsTrainer() && document.visibilityState === "visible") schLoadRemote(true); }, 300000); }
   else schProbe();
 });
+/* read-only access for other kits (Dexa Coach certificate check) */
+window.__SCH = { data: schData, myGroup: schMyGroup, norm: schNorm, stageDates: schStageDates, status: schGroupStatus };
+/* read-only access for other kits (Dexa Coach certificate check) */
+window.__SCH = { data: schData, myGroup: schMyGroup, norm: schNorm, stageDates: schStageDates, status: schGroupStatus };
+/* read-only access for other kits (Dexa Coach certificate check) */
+window.__SCH = { data: schData, myGroup: schMyGroup, norm: schNorm };
 /* ============================================================
    Job Simulator: Incident Room, Broken Dashboard, Stakeholder Simulator
    + cloud progress hook (window.HUB_PROGRESS, used by visit-kit.js)
