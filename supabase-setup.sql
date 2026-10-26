@@ -188,4 +188,6 @@ end $$;
 revoke all on function public.kv_exec(jsonb) from public, anon, authenticated;
 grant execute on function public.kv_exec(jsonb) to service_role;
 
+notify pgrst, 'reload schema';   -- make the new function visible to the API at once
+
 select 'Capstone database ready ✅' as status;

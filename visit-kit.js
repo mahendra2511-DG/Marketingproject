@@ -561,7 +561,7 @@
       <p style="margin:6px 0">Main: <b>${esc(d.main || "none")}</b> · ${st(d.mainOk, d.mainErr)}${d.backup ? `<br>Backup (old data): <b>${esc(d.backup)}</b> · ${st(d.backupOk, d.backupErr)}` : ""}</p>
       ${canCopy ? `<p style="margin:6px 0">${d.imported ? `✅ Old data copied on ${esc(new Date(d.imported).toLocaleString("en-IN"))}. You can copy again any time (nothing is overwritten).` : `Old students, accounts, schedule and progress are still in ${esc(d.backup)}. They are brought over automatically when a student logs in, or copy everything now:`}</p>
         <button id="vk-dbcopy" ${dbBusy || !d.backupOk ? "disabled" : ""}>${dbBusy ? "Copying…" : `⇪ Copy old data from ${esc(d.backup)}`}</button>${!d.backupOk ? ` <span class="vk-light">(${esc(d.backup)} must be working: upgrade it or wait for its monthly reset)</span>` : ""}` : ""}
-      ${d.main === "Supabase" && d.mainOk === false && /setup SQL/.test(d.mainErr || "") ? `<p class="vk-note err">Run <b>supabase-setup.sql</b> once in Supabase → SQL Editor, then reload.</p>` : ""}
+      ${d.main === "Supabase" && d.mainOk === false && /setup yet|supabase-setup/.test(d.mainErr || "") ? `<p class="vk-note err">Run <b>supabase-setup.sql</b> once in Supabase → SQL Editor, then reload.</p>` : ""}
       ${dbMsg ? `<div class="vk-note ${/^⚠/.test(dbMsg) ? "err" : ""}">${dbMsg}</div>` : ""}`;
     const b = box.querySelector("#vk-dbcopy"); if (b) b.addEventListener("click", copyOld);
   }

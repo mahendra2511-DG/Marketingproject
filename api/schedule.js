@@ -112,12 +112,17 @@ function dbEnv() { const s = supaEnv(), r = redisEnv(); if (s) { s.alt = r; retu
 async function sbPipe(env, cmds) {
   const ac = new AbortController(), t = setTimeout(() => ac.abort(), 9000);
   let r, j;
-  try { r = await fetch(env.url + "/rest/v1/rpc/kv_exec", { method: "POST", signal: ac.signal, headers: { apikey: env.key, Authorization: "Bearer " + env.key, "Content-Type": "application/json" }, body: JSON.stringify({ cmds }) }); j = await r.json().catch(() => null); }
+  // new Supabase secret keys (sb_secret_…) go only in "apikey"; old service_role keys (JWT, eyJ…) also as Bearer
+  const hd = { apikey: env.key, "Content-Type": "application/json" }; if (/^eyJ/.test(env.key)) hd.Authorization = "Bearer " + env.key;
+  try { r = await fetch(env.url + "/rest/v1/rpc/kv_exec", { method: "POST", signal: ac.signal, headers: hd, body: JSON.stringify({ cmds }) }); j = await r.json().catch(() => null); }
   catch (e) { throw new Error("Supabase not reachable" + (e.name === "AbortError" ? " (timeout)" : "")); }
   finally { clearTimeout(t); }
   if (!r.ok || !Array.isArray(j)) {
     const m = String((j && (j.message || j.error || j.hint)) || ("HTTP " + r.status)), code = String((j && j.code) || "");
-    throw new Error(/kv_exec|PGRST202|42883|42P01/.test(m + " " + code) ? "Supabase is connected but the setup SQL was not run yet (run supabase-setup.sql once in Supabase → SQL Editor)." : "Supabase: " + m.slice(0, 160));
+    const ref = (env.url.match(/^https?:\/\/([^.]+)/) || [])[1] || env.url;   // project id only (not secret), to check the SQL ran in the same project
+    if (/^(PGRST202|42883|42P01)$/.test(code)) throw new Error(`Supabase project "${ref}" does not have the setup yet: run supabase-setup.sql in THIS project's SQL Editor (then: notify pgrst, 'reload schema';). [${code}]`);
+    if (code === "42501" || r.status === 401 || r.status === 403) throw new Error(`Supabase project "${ref}": the key in Vercel is not the service role / secret key (${code || r.status}: ${m.slice(0, 100)})`);
+    throw new Error(`Supabase project "${ref}": ${m.slice(0, 160)}${code ? " [" + code + "]" : ""}`);
   }
   return j;
 }
