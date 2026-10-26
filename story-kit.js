@@ -104,6 +104,10 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
 .ko-play .big:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #151515}
 .ko-play span{font-size:13px;color:var(--ink-muted,#555)}
 .ko-nav button.pl{min-width:96px}
+.ko-vbtn{border:2.5px solid #151515;background:#fff;color:#151515;border-radius:12px;padding:9px 12px;font:700 13.5px/1 var(--body,inherit);cursor:pointer;box-shadow:3px 3px 0 #151515}
+.ko-vbtn[aria-pressed="false"]{background:#f1f1f1;color:#666}
+.ko-vsel{display:inline-flex;align-items:center;gap:6px;font:600 12.5px/1 var(--body,inherit);color:var(--ink,#151515)}
+.ko-vsel select{border:2px solid #151515;border-radius:8px;padding:5px 6px;font:inherit;background:#fff;color:#151515}
 @keyframes kbPop{to{opacity:1;transform:none}}
 .kb .who{display:block;font:800 10px/1 var(--body,inherit);letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-bottom:3px}
 .kb:after{content:"";position:absolute;bottom:-10px;left:var(--tx,28px);width:15px;height:15px;background:inherit;border-right:2.5px solid var(--ln);border-bottom:2.5px solid var(--ln);transform:rotate(45deg);border-radius:0 0 3px 0}
@@ -440,11 +444,11 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
     const mk = (o) => Object.assign({ side: "Client" }, o, { short: o.name.replace(/^Dr\.\s*/, "Dr. ").split(" ").slice(0, o.name.startsWith("Dr.") ? 2 : 1).join(" ") });
     return {
       sp: mk(D.sponsor), us: mk(D.user), ow: mk(D.owner),
-      lead: { name: "Mahendra Singh", short: "Mahendra", role: "BI Lead · your trainer", side: "BI team", cares: "Solving the right problem, quality, weekly demos.", look: { skin: "#D29A72", hair: "#17110d", hs: "side", top: "#1e3a8a", wear: "blazer", inner: "#e0f2fe", glasses: true, beard: true } },
-      pm: { name: "Riya Kapoor", short: "Riya", role: "Project Manager", side: "BI team", cares: "Timeline, owners, risks and status updates.", look: { skin: "#E8B58F", hair: "#2b1810", hs: "bun", top: "#9f1239", wear: "blazer", inner: "#fff", earrings: true, lanyard: "#0E86C9" } },
-      ba: { name: "Arjun Mehta", short: "Arjun", role: "Business Analyst", side: "BI team", cares: "Requirements, user stories, KPI definitions.", look: { skin: "#C98B62", hair: "#1a1a1a", hs: "short", top: "#f1f5f9", wear: "shirt", inner: "#fff", tie: "#1d4ed8", stubble: true } },
-      de: { name: "Neha Iyer", short: "Neha", role: "Data Engineer", side: "BI team", cares: "Pipelines, data quality, refresh on time.", look: { skin: "#DFA67F", hair: "#2a1a10", hs: "long", top: "#6d28d9", wear: "hoodie", earrings: true } },
-      qa: { name: "Kabir Sheikh", short: "Kabir", role: "QA / Test Analyst", side: "BI team", cares: "Every number on a dashboard must match SQL.", look: { skin: "#B97B54", hair: "#121212", hs: "spiky", top: "#15803d", wear: "tee", glasses: true } },
+      lead: { g: "m", name: "Mahendra Singh", short: "Mahendra", role: "BI Lead · your trainer", side: "BI team", cares: "Solving the right problem, quality, weekly demos.", look: { skin: "#D29A72", hair: "#17110d", hs: "side", top: "#1e3a8a", wear: "blazer", inner: "#e0f2fe", glasses: true, beard: true } },
+      pm: { g: "f", name: "Riya Kapoor", short: "Riya", role: "Project Manager", side: "BI team", cares: "Timeline, owners, risks and status updates.", look: { skin: "#E8B58F", hair: "#2b1810", hs: "bun", top: "#9f1239", wear: "blazer", inner: "#fff", earrings: true, lanyard: "#0E86C9" } },
+      ba: { g: "m", name: "Arjun Mehta", short: "Arjun", role: "Business Analyst", side: "BI team", cares: "Requirements, user stories, KPI definitions.", look: { skin: "#C98B62", hair: "#1a1a1a", hs: "short", top: "#f1f5f9", wear: "shirt", inner: "#fff", tie: "#1d4ed8", stubble: true } },
+      de: { g: "f", name: "Neha Iyer", short: "Neha", role: "Data Engineer", side: "BI team", cares: "Pipelines, data quality, refresh on time.", look: { skin: "#DFA67F", hair: "#2a1a10", hs: "long", top: "#6d28d9", wear: "hoodie", earrings: true } },
+      qa: { g: "m", name: "Kabir Sheikh", short: "Kabir", role: "QA / Test Analyst", side: "BI team", cares: "Every number on a dashboard must match SQL.", look: { skin: "#B97B54", hair: "#121212", hs: "spiky", top: "#15803d", wear: "tee", glasses: true } },
       you: { name: yn ? yn + " (you)" : "You", short: yn || "You", role: "Data Analyst / BI Developer", side: "BI team", cares: "SQL, KPIs, Excel, Tableau, Power BI, the story.", look: { skin: "#C68A63", hair: "#1c120c", hs: "curly", top: "#0f766e", wear: "hoodie" } }
     };
   }
@@ -515,28 +519,93 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
       { w: 6, info: `<div>${Q.map((q, i) => `<div class="kq" data-q="${i}"><p>${i + 1}. ${esc(q[0])}</p>${q[1].map((o, j) => `<button type="button" data-o="${j}">${esc(o)}</button>`).join("")}<div class="fb"></div></div>`).join("")}<div class="kcta"><button type="button" data-go="problem">🎯 Open the business problem</button><button type="button" data-go="kpis">📊 See all KPIs</button><button type="button" data-go="schedule">📅 My presentation schedule</button><button type="button" data-replay>🔁 Read again</button></div></div>`, cap: "Your turn · quick check 🧠", bgc: "#fffdf5" }] });
     return out;
   }
+  /* ---- voices: every character speaks with a male/female voice that suits them (browser speech, free, no key) ---- */
+  const FEMALE = new Set(["kavya", "priya", "ankita", "sana", "meera", "farah", "lakshmi", "ayesha", "ananya", "ishita", "fatima", "sneha", "pooja", "ritu", "dr. ritu", "anjali", "nisha", "tanvi", "riya", "neha", "zoya"]);
+  const LSK = "ko_voice_v1";
+  const prefs = (() => { try { return Object.assign({ on: true, you: "m", rate: 1 }, JSON.parse(localStorage.getItem(LSK) || "{}")); } catch (e) { return { on: true, you: "m", rate: 1 }; } })();
+  const savePrefs = () => { try { localStorage.setItem(LSK, JSON.stringify(prefs)); } catch (e) {} };
+  const SPEECH = typeof window.speechSynthesis !== "undefined" && typeof window.SpeechSynthesisUtterance !== "undefined";
+  const FEM_RE = /female|woman|zira|heera|neerja|swara|kalpana|aditi|raveena|veena|lekha|samantha|victoria|karen|moira|tessa|susan|hazel|catherine|sonia|libby|aria|jenny|michelle|emma|ava|allison|serena|fiona|kate|salli|joanna|kendra|kimberly|ivy|amy|google uk english female|google us english|ananya|isha|priya|anjali|kajal|nicky|shelley|sandy|flo|grandma/i;
+  const MAL_RE = /\bmale\b|\bman\b|david|mark|ravi|prabhat|hemant|madhur|daniel|alex|fred|rishi|george|guy|ryan|thomas|oliver|arthur|aaron|tom\b|christopher|eric|james|brian|matthew|joey|justin|russell|google uk english male|kunal|aarav|rocko|reed|eddy|grandpa/i;
+  let VOICES = null;
+  function voices() {
+    if (!SPEECH) return [];
+    const all = speechSynthesis.getVoices().filter(v => /^en|^hi/i.test(v.lang));
+    if (!all.length) return [];
+    const score = (v) => (/en-IN/i.test(v.lang) ? 30 : /en-GB/i.test(v.lang) ? 12 : /en-US/i.test(v.lang) ? 10 : /^hi/i.test(v.lang) ? -50 : 0) + (/natural|neural|online|google/i.test(v.name) ? 8 : 0);
+    const sorted = all.slice().sort((a, b) => score(b) - score(a));
+    const f = sorted.filter(v => FEM_RE.test(v.name) && !MAL_RE.test(v.name)), m = sorted.filter(v => MAL_RE.test(v.name));
+    const other = sorted.filter(v => !f.includes(v) && !m.includes(v));
+    return (VOICES = { f: f.length ? f : other, m: m.length ? m : other, any: sorted });
+  }
+  if (SPEECH) { voices(); try { speechSynthesis.addEventListener("voiceschanged", voices); } catch (e) { speechSynthesis.onvoiceschanged = voices; } }
+  // each character: gender, a voice (different people of the same gender get different voices when the device has them) and a pitch/speed of their own
+  function voiceFor(key, P) {
+    const V = VOICES || voices(); const p = P[key] || {};
+    const g = key === "narr" ? "f" : key === "you" ? prefs.you : p.g || (FEMALE.has(String(p.short || "").toLowerCase()) ? "f" : "m");
+    const order = { f: ["sp", "us", "ow", "pm", "de", "you", "narr"], m: ["lead", "sp", "us", "ow", "ba", "qa", "you"] }[g];
+    const list = (V && V[g]) || [];
+    const idx = Math.max(0, order.indexOf(key));
+    const v = list.length ? list[idx % list.length] : null;
+    const tone = { sp: [0.95, 0.98], us: [1.05, 1.04], ow: [1.0, 0.96], lead: [0.92, 0.97], pm: [1.1, 1.02], ba: [1.02, 1.04], de: [1.12, 1.03], qa: [1.08, 1.05], you: [1.06, 1.02], narr: [1.0, 0.98] }[key] || [1, 1];
+    // only one voice of this gender on the device → shift the pitch so people still sound different
+    const shift = list.length > 1 ? 1 : g === "f" ? (v && FEM_RE.test(v.name) ? 1 : 1.35) : (v && MAL_RE.test(v.name) ? 1 : 0.7);
+    return { voice: v, pitch: Math.max(0.1, Math.min(2, tone[0] * shift)), rate: tone[1] * prefs.rate };
+  }
+  function speechText(t) {
+    return String(t).replace(/\p{Extended_Pictographic}|\uFE0F/gu, "").replace(/₹\s?/g, " rupees ").replace(/÷/g, " divided by ").replace(/×/g, " times ").replace(/→|->/g, " to ").replace(/\bvs\.?\b/gi, "versus").replace(/\bKPIs\b/g, "K P Is").replace(/\bKPI\b/g, "K P I").replace(/\bMoM\b/g, "minutes of meeting").replace(/\bBI\b/g, "B I").replace(/\bQA\b/g, "Q A").replace(/…/g, ", ").replace(/\s+/g, " ").trim();
+  }
+
   /* ---- player: reveals panels one by one, characters talk while their line types out; Play = runs on its own like a GIF ---- */
   function renderDeck(host, D) {
     const S = pages(D), P = people(D); let si = 0, beat = 0, playing = false, gen = 0, busy = false, timer = 0;
     host.innerHTML = `<div class="ko"><div class="ko-head"><div><span class="ko-ep">🎬 Animated comic · Episode 1 · ${S.length} pages · about 8 minutes</span><h2>The Kick-off: ${esc(D.project)}</h2><p>Watch a real BI kick-off meeting play out: the client, the BI team and you. Press <b>Play</b> to watch it like a video, or <b>Next</b> to go at your own pace.</p></div></div>
-      <div class="ko-play"><button type="button" class="big">▶ Play the story</button><span>Characters talk, lines type out, pages turn by themselves. Pause any time.</span></div>
+      <div class="ko-play"><button type="button" class="big">▶ Play the story</button>
+        ${SPEECH ? `<button type="button" class="ko-vbtn" data-v="on" aria-pressed="${prefs.on}">${prefs.on ? "🔊 Voices on" : "🔇 Voices off"}</button>
+        <label class="ko-vsel">Your voice <select data-v="you"><option value="m" ${prefs.you === "m" ? "selected" : ""}>👨 Male</option><option value="f" ${prefs.you === "f" ? "selected" : ""}>👩 Female</option></select></label>
+        <label class="ko-vsel">Speed <select data-v="rate">${[[0.85, "Slow"], [1, "Normal"], [1.15, "Fast"]].map(r => `<option value="${r[0]}" ${+prefs.rate === r[0] ? "selected" : ""}>${r[1]}</option>`).join("")}</select></label>` : ""}
+        <span>${SPEECH ? "Every character speaks in their own voice (use headphones in class). " : ""}Lines type out and pages turn by themselves. Pause any time.</span></div>
       <div class="ko-book" tabindex="0" aria-roledescription="comic book"><div class="ko-slot"></div>
-      <div class="ko-nav"><button type="button" class="pv" aria-label="Previous page">←</button><button type="button" class="pl">▶ Play</button><button type="button" class="go">Next →</button><span class="ko-scene"></span><div class="ko-prog" aria-hidden="true"><i></i></div></div></div></div>`;
+      <div class="ko-nav"><button type="button" class="pv" aria-label="Previous page">←</button><button type="button" class="pl">▶ Play</button>${SPEECH ? `<button type="button" class="vo" aria-label="Voices on or off">${prefs.on ? "🔊" : "🔇"}</button>` : ""}<button type="button" class="go">Next →</button><span class="ko-scene"></span><div class="ko-prog" aria-hidden="true"><i></i></div></div></div></div>`;
     const slot = host.querySelector(".ko-slot"), book = host.querySelector(".ko-book"), go = host.querySelector(".go"), pv = host.querySelector(".pv"), pl = host.querySelector(".pl"), big = host.querySelector(".ko-play .big"), sc = host.querySelector(".ko-scene"), pr = host.querySelector(".ko-prog i");
     const wait = (ms, g) => new Promise(res => { clearTimeout(timer); timer = setTimeout(() => res(g === gen), ms); });
+    const hush = () => { if (SPEECH) try { speechSynthesis.cancel(); } catch (e) {} };
+    // speak one line; resolves when the voice finishes (or is stopped). Chrome sometimes never fires "end", so there is a time limit.
+    function say(text, key, g) {
+      if (!SPEECH || !prefs.on || RM() || !speechSynthesis.getVoices().length) return Promise.resolve(true);
+      const t = speechText(text); if (!t) return Promise.resolve(true);
+      return new Promise(res => {
+        const u = new SpeechSynthesisUtterance(t), vf = voiceFor(key, P);
+        try { if (vf.voice) { u.voice = vf.voice; u.lang = vf.voice.lang; } else u.lang = "en-IN"; } catch (e) { u.lang = "en-IN"; }
+        try { u.pitch = vf.pitch; u.rate = vf.rate; } catch (e) {}
+        let done = false; const fin = () => { if (done) return; done = true; clearInterval(iv); clearTimeout(lim); res(g === gen); };
+        let started = false; u.onstart = () => { started = true; };
+        u.onend = fin; u.onerror = fin;
+        const lim = setTimeout(fin, 2500 + t.length * 95 / vf.rate);
+        setTimeout(() => { if (!started && !speechSynthesis.speaking) fin(); }, 1600);   // no audio on this device: don't hold the story
+        const iv = setInterval(() => { if (g !== gen) { hush(); fin(); } }, 150);
+        try { speechSynthesis.speak(u); } catch (e) { fin(); }
+      });
+    }
+    const estMs = (text) => Math.min(9000, Math.max(800, speechText(text).length * 62 / prefs.rate));
+    const vb = host.querySelector(".ko-vbtn"), vo = host.querySelector(".ko-nav .vo");
+    const setVoice = (on) => { prefs.on = on; savePrefs(); if (!on) hush(); if (vb) { vb.textContent = on ? "🔊 Voices on" : "🔇 Voices off"; vb.setAttribute("aria-pressed", on); } if (vo) vo.textContent = on ? "🔊" : "🔇"; };
+    if (vb) vb.addEventListener("click", () => setVoice(!prefs.on)); if (vo) vo.addEventListener("click", () => setVoice(!prefs.on));
+    host.querySelectorAll("select[data-v]").forEach(sel => sel.addEventListener("change", () => { prefs[sel.dataset.v] = sel.dataset.v === "rate" ? +sel.value : sel.value; savePrefs(); }));
     const plain = (el) => (el.textContent || "").replace(/\s+/g, " ").trim();
     function setPlay(on) {
       playing = on; pl.textContent = on ? "⏸ Pause" : "▶ Play"; big.textContent = on ? "⏸ Pause the story" : "▶ Play the story";
+      if (!on) hush();
       if (on && !busy) advance();
     }
     // type the bubble's text nodes out (keeps bold/links); resolves false if interrupted
-    function typeOut(el, g) {
+    function typeOut(el, g, msWanted) {
       const nodes = []; const walk = (n) => n.childNodes.forEach(c => { if (c.nodeType === 3) nodes.push(c); else if (!(c.classList && c.classList.contains("who"))) walk(c); }); walk(el);
       const full = nodes.map(n => n.nodeValue); const total = full.reduce((a, t) => a + t.length, 0);
       if (RM() || !total) return Promise.resolve(true);
       nodes.forEach(n => { n.nodeValue = ""; });
       const caret = document.createElement("span"); caret.className = "caret"; el.appendChild(caret);
-      const ms = Math.min(3600, Math.max(700, total * 26)); const t0 = performance.now();
+      const ms = msWanted || Math.min(3600, Math.max(700, total * 26)); const t0 = performance.now();
       return new Promise(res => {
         const tick = (now) => {
           if (g !== gen) { nodes.forEach((n, i) => { n.nodeValue = full[i]; }); caret.remove(); return res(false); }
@@ -552,24 +621,34 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
       el.classList.add("in");
       if (!RM()) { const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 80 || r.top < 0) el.scrollIntoView({ block: r.height > innerHeight - 160 ? "start" : "center", behavior: "smooth" }); }
       const bubbles = [...el.querySelectorAll(".kb")];
-      if (!bubbles.length) { const words = plain(el).split(" ").length; return wait(playing ? Math.min(11000, Math.max(3000, words * 230)) : 250, g); }
+      if (!bubbles.length) {
+        const cap = el.querySelector(".kp-cap"), note = el.querySelector(".kp-note"), words = plain(el).split(" ").length;
+        const spoken = prefs.on && SPEECH && (playing || cap) ? say([cap ? plain(cap) : "", note ? plain(note) : ""].filter(Boolean).join(". "), "narr", g) : null;
+        const ok = await wait(playing ? Math.min(11000, Math.max(3000, words * 230)) : 250, g);
+        if (spoken) await spoken;
+        return ok && g === gen;
+      }
       if (!(await wait(RM() ? 0 : 450, g))) return false;
       for (const b of bubbles) {
         const who = el.querySelector(`.ch[data-who="${b.dataset.who}"]`);
         b.classList.add("show");
         if (who) who.classList.add("talk");
-        const ok = await typeOut(b, g);
+        const line = [...b.childNodes].filter(n => !(n.classList && (n.classList.contains("who") || n.classList.contains("why") || n.classList.contains("caret")))).map(n => n.textContent).join(" ");
+        const voiceOn = SPEECH && prefs.on && !RM() && speechSynthesis.getVoices().length > 0;
+        const spoken = voiceOn ? say(line, b.dataset.who, g) : null;
+        let ok = await typeOut(b, g, voiceOn ? estMs(line) * 0.85 : 0);
+        if (spoken) ok = (await spoken) && ok;
         if (who) who.classList.remove("talk");
         b.classList.add("done");
         if (!ok) return false;
         const words = plain(b).split(" ").length;
-        if (!(await wait(playing ? Math.min(2600, 500 + words * 70) : 220, g))) return false;
+        if (!(await wait(playing ? (SPEECH && prefs.on ? 350 : Math.min(2600, 500 + words * 70)) : 220, g))) return false;
       }
       return true;
     }
     function finishPanel(el) { if (!el) return; el.classList.add("in"); el.querySelectorAll(".kb").forEach(b => b.classList.add("show", "done")); el.querySelectorAll(".ch.talk").forEach(c => c.classList.remove("talk")); }
     function show(i, all) {
-      gen++; clearTimeout(timer); busy = false;
+      gen++; clearTimeout(timer); busy = false; hush();
       si = Math.max(0, Math.min(S.length - 1, i)); const s = S[si];
       slot.innerHTML = `<div class="ko-page"><div class="ko-ptitle"><span class="no">PAGE ${si + 1}</span><h3>${esc(s.t)}</h3></div><div class="ko-grid">${s.panels.map((p, k) => panelHtml(p, P, k)).join("")}</div></div>`;
       beat = 0;
@@ -597,7 +676,7 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
     }
     function next() {
       const s = S[si];
-      if (busy) { gen++; busy = false; finishPanel(slot.querySelector(`.kp[data-p="${beat - 1}"]`)); label(); if (beat < s.panels.length) step(); return; }   // first click finishes the current panel
+      if (busy) { gen++; busy = false; hush(); finishPanel(slot.querySelector(`.kp[data-p="${beat - 1}"]`)); label(); if (beat < s.panels.length) step(); return; }   // first click finishes the current panel
       if (beat < s.panels.length) step();
       else { show(si < S.length - 1 ? si + 1 : 0); book.scrollIntoView({ block: "start", behavior: RM() ? "auto" : "smooth" }); }
     }
@@ -638,5 +717,6 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
     if (sec) { if (sec.classList.contains("active")) build(); new MutationObserver(() => { if (sec.classList.contains("active")) build(); }).observe(sec, { attributes: true, attributeFilter: ["class"] }); }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount); else mount();
-  window.KICKOFF_KIT = { renderArch, renderDeck, figure };
+  // for checking which voice each character gets on this device: KICKOFF_KIT.voicePlan()
+  window.KICKOFF_KIT = { renderArch, renderDeck, figure, voicePlan: () => { const D = window.KICKOFF_DATA && window.KICKOFF_DATA[SITE]; if (!D) return {}; const P = people(D); voices(); return Object.fromEntries(["sp", "us", "ow", "lead", "pm", "ba", "de", "qa", "you", "narr"].map(k => { const v = voiceFor(k, P); return [k + (P[k] ? " · " + P[k].short : ""), (v.voice ? v.voice.name : "default") + " · pitch " + v.pitch.toFixed(2)]; })); } };
 })();
