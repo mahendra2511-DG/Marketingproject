@@ -128,6 +128,7 @@
   const errOut = (M, t) => {
     const e = M.$("vk-err"); if (!e) return; e.textContent = t || "";
     if (t && DB_DOWN.test(t)) {
+      try { if (window.KICKOFF_CAST) { const c = document.createElement("div"); c.innerHTML = window.KICKOFF_CAST.dbDown(); e.insertBefore(c.firstChild, e.firstChild); } } catch (x) {}
       const b = document.createElement("button"); b.type = "button"; b.className = "vk-guest"; b.textContent = "Continue without login → (open the site)";
       b.style.cssText = "display:block;width:100%;margin-top:10px;background:transparent;color:inherit;border:1.5px solid currentColor;border-radius:10px;padding:10px;font-weight:700;cursor:pointer";
       b.addEventListener("click", () => { try { sessionStorage.setItem(KEY + "_guest", "1"); } catch (x) {} M.close(); });
