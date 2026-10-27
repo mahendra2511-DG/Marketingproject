@@ -43,7 +43,7 @@
     <nav class="sidebar-nav" id="nav">
       <div class="nav-group-label">Home</div>
       <button data-view="overview" class="active"><span class="ic">🏠</span><span class="lbl">Home &amp; Roadmap</span></button>
-      <button data-view="kickoff"><span class="ic">🎬</span><span class="lbl">Kick-off Story</span><span class="nav-live">NEW</span></button>
+      <button data-view="kickoff"><span class="ic">🎬</span><span class="lbl">Kick-off: Story &amp; Playbook</span><span class="nav-live">NEW</span></button>
       <button data-view="schedule"><span class="ic">📅</span><span class="lbl">Project Schedule &amp; Status</span></button>
       <button data-view="progress"><span class="ic">📈</span><span class="lbl">My Progress</span></button>
 
@@ -276,7 +276,7 @@
 </section>
 
 <!-- ===================== PROJECT SCHEDULE ===================== -->
-<section class="view" id="view-kickoff"><div id="ko-deck"></div></section>
+<section class="view" id="view-kickoff"><div class="wrap"><div id="ko-tabs"></div><div id="ko-deck"></div><div id="ko-learn" hidden></div></div></section>
 <section class="view" id="view-schedule">
   <div class="wrap">
     <div class="section-head">
@@ -1014,7 +1014,9 @@
 <script src="coach-kit.js?v=20261024-acc" defer></script>
 <script>window.VISIT_KEY = "axon_mkt";</script>
 <script src="visit-kit.js?v=20261025-sb2"></script>
-<script src="story-data.js?v=20261026-ko"></script>
-<script src="story-kit.js?v=20261026-ko" data-site="mkt"></script>
+<script src="story-data.js?v=20261027-pb"></script>
+<script src="story-learn.js?v=20261027-pb"></script>
+<script src="story-kit.js?v=20261027-pb" data-site="mkt"></script>
+<script src="learn-kit.js?v=20261027-pb" data-site="mkt"></script>
 </body>
 </html>

@@ -532,7 +532,7 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
     if (!SPEECH) return [];
     const all = speechSynthesis.getVoices().filter(v => /^en|^hi/i.test(v.lang));
     if (!all.length) return [];
-    const score = (v) => (/en-IN/i.test(v.lang) ? 30 : /en-GB/i.test(v.lang) ? 12 : /en-US/i.test(v.lang) ? 10 : /^hi/i.test(v.lang) ? -50 : 0) + (/natural|neural|online|google/i.test(v.name) ? 8 : 0);
+    const score = (v) => (/en-IN/i.test(v.lang) ? 30 : /en-GB/i.test(v.lang) ? 12 : /en-US/i.test(v.lang) ? 10 : /^hi/i.test(v.lang) ? -50 : 0) + (/natural|neural/i.test(v.name) ? 40 : /online|premium|enhanced/i.test(v.name) ? 25 : /google/i.test(v.name) ? 12 : 0);
     const sorted = all.slice().sort((a, b) => score(b) - score(a));
     const f = sorted.filter(v => FEM_RE.test(v.name) && !MAL_RE.test(v.name)), m = sorted.filter(v => MAL_RE.test(v.name));
     const other = sorted.filter(v => !f.includes(v) && !m.includes(v));
@@ -552,6 +552,38 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
     const shift = list.length > 1 ? 1 : g === "f" ? (v && FEM_RE.test(v.name) ? 1 : 1.35) : (v && MAL_RE.test(v.name) ? 1 : 0.7);
     return { voice: v, pitch: Math.max(0.1, Math.min(2, tone[0] * shift)), rate: tone[1] * prefs.rate };
   }
+  const NATURAL = (v) => !!v && /natural|neural|online|premium|enhanced/i.test(v.name);
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  function hushAll() { if (SPEECH) try { speechSynthesis.cancel(); } catch (e) {} }
+  // speak(text, characterKey, people, kind, alive) → Promise<boolean>; alive() returning false stops it at once
+  async function speak(text, key, P, kind, alive) {
+    alive = alive || (() => true);
+    if (!SPEECH || !prefs.on || RM() || !speechSynthesis.getVoices().length) return true;
+    const t = speechText(text); if (!t) return true;
+    const vf = voiceFor(key, P), nat = NATURAL(vf.voice);
+    const mood = { shout: [1.07, 1.06, 1], think: [0.92, 0.98, 0.85], whisper: [0.95, 1, 0.65], narr: [0.97, 1, 0.95] }[kind] || [1, 1, 1];
+    // natural voices already sound human: only nudge their pitch a little; basic voices get the full per-character pitch
+    const pitch = Math.max(0.5, Math.min(1.6, (nat ? 1 + (vf.pitch - 1) * 0.3 : vf.pitch) * mood[1]));
+    const parts = t.match(/[^.!?]+[.!?]*|[.!?]+/g).map(x => x.trim()).filter(Boolean).flatMap(x => x.length > 170 ? x.split(/(?<=[,;:])\s+/) : [x]);
+    for (let i = 0; i < parts.length; i++) {
+      if (!alive()) return false;
+      const ok = await new Promise(res => {
+        const u = new SpeechSynthesisUtterance(parts[i]);
+        try { if (vf.voice) { u.voice = vf.voice; u.lang = vf.voice.lang; } else u.lang = "en-IN"; } catch (e) { u.lang = "en-IN"; }
+        // tiny variation sentence to sentence so it doesn't sound like a machine reading a list
+        try { u.pitch = pitch * (1 + (i % 2 ? 0.015 : -0.01)); u.rate = Math.max(0.6, Math.min(1.6, vf.rate * mood[0] * (/\?$/.test(parts[i]) ? 0.97 : 1))); u.volume = mood[2]; } catch (e) {}
+        let done = false, started = false; const fin = (v) => { if (done) return; done = true; clearInterval(iv); clearTimeout(lim); res(v); };
+        u.onstart = () => { started = true; }; u.onend = () => fin(true); u.onerror = () => fin(true);
+        const lim = setTimeout(() => fin(true), 2500 + parts[i].length * 95 / vf.rate);
+        setTimeout(() => { if (!started && !speechSynthesis.speaking) fin(true); }, 1600);   // no audio on this device: don't hold anything up
+        const iv = setInterval(() => { if (!alive()) { hushAll(); fin(false); } }, 120);
+        try { speechSynthesis.speak(u); } catch (e) { fin(true); }
+      });
+      if (!ok) return false;
+      if (i < parts.length - 1) await sleep(/[,;:]$/.test(parts[i]) ? 90 : 170 + Math.random() * 90);   // breathe between sentences
+    }
+    return alive();
+  }
   function speechText(t) {
     return String(t).replace(/\p{Extended_Pictographic}|\uFE0F/gu, "").replace(/₹\s?/g, " rupees ").replace(/÷/g, " divided by ").replace(/×/g, " times ").replace(/→|->/g, " to ").replace(/\bvs\.?\b/gi, "versus").replace(/\bKPIs\b/g, "K P Is").replace(/\bKPI\b/g, "K P I").replace(/\bMoM\b/g, "minutes of meeting").replace(/\bBI\b/g, "B I").replace(/\bQA\b/g, "Q A").replace(/…/g, ", ").replace(/\s+/g, " ").trim();
   }
@@ -564,14 +596,15 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
         ${SPEECH ? `<button type="button" class="ko-vbtn" data-v="on" aria-pressed="${prefs.on}">${prefs.on ? "🔊 Voices on" : "🔇 Voices off"}</button>
         <label class="ko-vsel">Your voice <select data-v="you"><option value="m" ${prefs.you === "m" ? "selected" : ""}>👨 Male</option><option value="f" ${prefs.you === "f" ? "selected" : ""}>👩 Female</option></select></label>
         <label class="ko-vsel">Speed <select data-v="rate">${[[0.85, "Slow"], [1, "Normal"], [1.15, "Fast"]].map(r => `<option value="${r[0]}" ${+prefs.rate === r[0] ? "selected" : ""}>${r[1]}</option>`).join("")}</select></label>` : ""}
-        <span>${SPEECH ? "Every character speaks in their own voice (use headphones in class). " : ""}Lines type out and pages turn by themselves. Pause any time.</span></div>
+        <span class="ko-vinfo">${SPEECH ? "Every character speaks in their own voice. " : ""}Lines type out and pages turn by themselves. Pause any time.</span></div>
       <div class="ko-book" tabindex="0" aria-roledescription="comic book"><div class="ko-slot"></div>
       <div class="ko-nav"><button type="button" class="pv" aria-label="Previous page">←</button><button type="button" class="pl">▶ Play</button>${SPEECH ? `<button type="button" class="vo" aria-label="Voices on or off">${prefs.on ? "🔊" : "🔇"}</button>` : ""}<button type="button" class="go">Next →</button><span class="ko-scene"></span><div class="ko-prog" aria-hidden="true"><i></i></div></div></div></div>`;
     const slot = host.querySelector(".ko-slot"), book = host.querySelector(".ko-book"), go = host.querySelector(".go"), pv = host.querySelector(".pv"), pl = host.querySelector(".pl"), big = host.querySelector(".ko-play .big"), sc = host.querySelector(".ko-scene"), pr = host.querySelector(".ko-prog i");
     const wait = (ms, g) => new Promise(res => { clearTimeout(timer); timer = setTimeout(() => res(g === gen), ms); });
     const hush = () => { if (SPEECH) try { speechSynthesis.cancel(); } catch (e) {} };
     // speak one line; resolves when the voice finishes (or is stopped). Chrome sometimes never fires "end", so there is a time limit.
-    function say(text, key, g) {
+    function say(text, key, g, kind) { return speak(text, key, P, kind || (key === "narr" ? "narr" : ""), () => g === gen); }
+    function sayOld(text, key, g) {
       if (!SPEECH || !prefs.on || RM() || !speechSynthesis.getVoices().length) return Promise.resolve(true);
       const t = speechText(text); if (!t) return Promise.resolve(true);
       return new Promise(res => {
@@ -587,15 +620,18 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
         try { speechSynthesis.speak(u); } catch (e) { fin(); }
       });
     }
-    const estMs = (text) => Math.min(9000, Math.max(800, speechText(text).length * 62 / prefs.rate));
-    const vb = host.querySelector(".ko-vbtn"), vo = host.querySelector(".ko-nav .vo");
+    const estMs = (text) => Math.min(9500, Math.max(800, speechText(text).length * 64 / prefs.rate + (speechText(text).match(/[.!?]/g) || []).length * 200));
+    const vb = host.querySelector(".ko-vbtn"), vo = host.querySelector(".ko-nav .vo"), vinfo = host.querySelector(".ko-vinfo");
+    const showVoiceInfo = () => { if (!vinfo || !SPEECH) return; const V = voices(); const all = V && V.any ? V.any : []; const nat = all.filter(NATURAL);
+      vinfo.innerHTML = !all.length ? "Your browser has no voices, so the story plays as text." : nat.length ? `🎙️ Natural voices found (${esc(nat[0].name.replace(/ - .*$/, ""))}${nat.length > 1 ? " and " + (nat.length - 1) + " more" : ""}). Every character speaks in their own voice.` : `🎙️ Using your browser's basic voices. For the most natural, human-like voices open this page in <b>Microsoft Edge</b> (free "Natural" Indian voices).`; };
+    showVoiceInfo(); if (SPEECH) try { speechSynthesis.addEventListener("voiceschanged", showVoiceInfo); } catch (e) {}
     const setVoice = (on) => { prefs.on = on; savePrefs(); if (!on) hush(); if (vb) { vb.textContent = on ? "🔊 Voices on" : "🔇 Voices off"; vb.setAttribute("aria-pressed", on); } if (vo) vo.textContent = on ? "🔊" : "🔇"; };
     if (vb) vb.addEventListener("click", () => setVoice(!prefs.on)); if (vo) vo.addEventListener("click", () => setVoice(!prefs.on));
     host.querySelectorAll("select[data-v]").forEach(sel => sel.addEventListener("change", () => { prefs[sel.dataset.v] = sel.dataset.v === "rate" ? +sel.value : sel.value; savePrefs(); }));
     const plain = (el) => (el.textContent || "").replace(/\s+/g, " ").trim();
     function setPlay(on) {
       playing = on; pl.textContent = on ? "⏸ Pause" : "▶ Play"; big.textContent = on ? "⏸ Pause the story" : "▶ Play the story";
-      if (!on) hush();
+      if (!on) { hush(); if (busy) { gen++; busy = false; finishPanel(slot.querySelector(`.kp[data-p="${beat - 1}"]`)); label(); } }
       if (on && !busy) advance();
     }
     // type the bubble's text nodes out (keeps bold/links); resolves false if interrupted
@@ -635,7 +671,7 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
         if (who) who.classList.add("talk");
         const line = [...b.childNodes].filter(n => !(n.classList && (n.classList.contains("who") || n.classList.contains("why") || n.classList.contains("caret")))).map(n => n.textContent).join(" ");
         const voiceOn = SPEECH && prefs.on && !RM() && speechSynthesis.getVoices().length > 0;
-        const spoken = voiceOn ? say(line, b.dataset.who, g) : null;
+        const spoken = voiceOn ? say(line, b.dataset.who, g, b.classList.contains("shout") ? "shout" : b.classList.contains("think") ? "think" : "") : null;
         let ok = await typeOut(b, g, voiceOn ? estMs(line) * 0.85 : 0);
         if (spoken) ok = (await spoken) && ok;
         if (who) who.classList.remove("talk");
@@ -697,6 +733,7 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
     const sec = document.getElementById("view-kickoff");
     if (sec) new MutationObserver(() => { if (!sec.classList.contains("active")) setPlay(false); }).observe(sec, { attributes: true, attributeFilter: ["class"] });
     document.addEventListener("visibilitychange", () => { if (document.hidden) setPlay(false); });
+    host.addEventListener("ko:stop", () => setPlay(false));   // e.g. the student switched to the Playbook tab
     show(0);
   }
 
@@ -718,5 +755,5 @@ body.dark-mode .ko-book{background:#efe9dc;box-shadow:8px 8px 0 #000}
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount); else mount();
   // for checking which voice each character gets on this device: KICKOFF_KIT.voicePlan()
-  window.KICKOFF_KIT = { renderArch, renderDeck, figure, voicePlan: () => { const D = window.KICKOFF_DATA && window.KICKOFF_DATA[SITE]; if (!D) return {}; const P = people(D); voices(); return Object.fromEntries(["sp", "us", "ow", "lead", "pm", "ba", "de", "qa", "you", "narr"].map(k => { const v = voiceFor(k, P); return [k + (P[k] ? " · " + P[k].short : ""), (v.voice ? v.voice.name : "default") + " · pitch " + v.pitch.toFixed(2)]; })); } };
+  window.KICKOFF_KIT = { renderArch, renderDeck, figure, people, speak, hush: hushAll, prefs, speechReady: () => SPEECH && speechSynthesis.getVoices().length > 0, voicePlan: () => { const D = window.KICKOFF_DATA && window.KICKOFF_DATA[SITE]; if (!D) return {}; const P = people(D); voices(); return Object.fromEntries(["sp", "us", "ow", "lead", "pm", "ba", "de", "qa", "you", "narr"].map(k => { const v = voiceFor(k, P); return [k + (P[k] ? " · " + P[k].short : ""), (v.voice ? v.voice.name : "default") + " · pitch " + v.pitch.toFixed(2)]; })); } };
 })();
