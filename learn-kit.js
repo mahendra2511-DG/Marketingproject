@@ -42,13 +42,13 @@
 .kl-chip{font:700 10.5px/1 var(--body,inherit);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:99px;background:var(--teal-tint,#E6F3FA);color:var(--teal-deep,#0A5A87)}
 .kl-day{font:600 12px/1 var(--body,inherit);color:var(--ink-muted,#5B6472)}
 .kl-card h3{margin:4px 0 12px;font:800 21px/1.2 var(--display,inherit)}
-.kl-beat{position:relative;display:flex;gap:12px;align-items:flex-end;background:#fbf7ee;border:2.5px solid #151515;border-radius:10px;padding:10px 12px 0;margin-bottom:14px;overflow:hidden;color:#151515}
-.kl-beat .ch{flex:none;width:86px;text-align:center}.kl-beat .ch svg{width:86px;height:112px;display:block}.kl-beat .ch b{display:block;font:700 10px/1 var(--body,inherit);background:#151515;color:#fff;border-radius:4px;padding:3px 5px;margin:-6px auto 6px;width:max-content}
+.kl-beat{position:relative;display:flex;gap:12px;align-items:flex-end;background:linear-gradient(180deg,var(--teal-tint,#E6F3FA),#fff 85%);border:1px solid var(--line,#DDE2E0);border-radius:14px;padding:12px 12px 0;margin-bottom:14px;overflow:hidden;color:#1d2532}
+.kl-beat .ch{flex:none;width:86px;text-align:center}.kl-beat .ch svg{width:86px;height:112px;display:block}.kl-beat .ch b{display:block;font:700 10px/1 var(--body,inherit);background:#1d2532;color:#fff;border-radius:99px;padding:3px 7px;margin:-6px auto 6px;width:max-content}
 .kl-beat .lines{flex:1;display:flex;flex-direction:column;gap:8px;padding-bottom:12px}
-.kl-beat .bb{background:#fff;border:2.5px solid #151515;border-radius:16px;padding:8px 11px;font:700 13.5px/1.42 "Comic Neue","Comic Sans MS","Trebuchet MS",sans-serif}
-.kl-beat .bb.r{align-self:flex-end;background:#eef6ff}
-.kl-beat .bb span{display:block;font:800 9.5px/1 var(--body,inherit);letter-spacing:.08em;text-transform:uppercase;color:var(--teal,#0E86C9);margin-bottom:3px}
-.kl-beat .lis{position:absolute;right:8px;top:8px;border:2px solid #151515;background:#ffd43b;border-radius:8px;padding:5px 9px;font:800 12px/1 var(--body,inherit);cursor:pointer;color:#151515}
+.kl-beat .bb{background:#fff;border:1px solid #dde2e8;border-radius:14px;padding:9px 12px;font:500 14px/1.5 var(--body,inherit);box-shadow:0 3px 10px -5px rgba(16,24,38,.18)}
+.kl-beat .bb.r{align-self:flex-end;background:#f5f8fc}
+.kl-beat .bb span{display:block;font:800 9.5px/1 var(--body,inherit);letter-spacing:.08em;text-transform:uppercase;color:var(--teal-deep,#0A5A87);margin-bottom:4px}
+.kl-beat .lis{position:absolute;right:8px;top:8px;border:1px solid var(--line,#d0d6de);background:#fff;border-radius:99px;padding:6px 11px;font:600 12px/1 var(--body,inherit);cursor:pointer;color:var(--teal-deep,#0A5A87)}
 .kl-sec{margin:14px 0}.kl-sec h4{margin:0 0 6px;font:800 14.5px/1.3 var(--display,inherit)}
 .kl-sec p{margin:0;font-size:14px;line-height:1.6}
 .kl-terms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.kl-terms span{font-size:12.5px;background:var(--paper,#F6F7F5);border:1px dashed var(--line,#C9CFCD);border-radius:8px;padding:4px 8px}.kl-terms b{color:var(--teal-deep,#0A5A87)}
