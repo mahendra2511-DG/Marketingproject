@@ -243,7 +243,7 @@ body.dark-mode .kl-doc{background:#fbf7ee}
     }
     function show() { if (ST.tab !== "story") deck.dispatchEvent(new CustomEvent("ko:stop")); renderTabs(); deck.hidden = ST.tab !== "story"; host.hidden = ST.tab !== "learn"; if (ST.tab === "learn") render(); }
     function beatHtml(m) {
-      return `<div class="kl-beat">${m.beat.map((b, i) => i === 0 ? `<div class="ch">${KIT.figure(P[b[0]].look, b[1], b[2])}<b>${esc(P[b[0]].short)}</b></div>` : "").join("")}<div class="lines">${m.beat.map(b => `<div class="bb ${b[4] === "r" ? "r" : ""}"><span>${esc(P[b[0]].short)}</span>${esc(b[3])}</div>`).join("")}</div>${m.beat[1] ? `<div class="ch">${KIT.figure(P[m.beat[1][0]].look, m.beat[1][1], m.beat[1][2])}<b>${esc(P[m.beat[1][0]].short)}</b></div>` : ""}${KIT.speechReady() ? `<button type="button" class="lis" aria-label="Listen to this scene">🔊 Listen</button>` : ""}</div>`;
+      return `<div class="kl-beat">${m.beat.map((b, i) => i === 0 ? `<div class="ch" data-who="${esc(b[0])}">${KIT.figure(P[b[0]].look, b[1], b[2])}<b>${esc(P[b[0]].short)}</b></div>` : "").join("")}<div class="lines">${m.beat.map(b => `<div class="bb ${b[4] === "r" ? "r" : ""}"><span>${esc(P[b[0]].short)}</span>${esc(b[3])}</div>`).join("")}</div>${m.beat[1] ? `<div class="ch" data-who="${esc(m.beat[1][0])}">${KIT.figure(P[m.beat[1][0]].look, m.beat[1][1], m.beat[1][2])}<b>${esc(P[m.beat[1][0]].short)}</b></div>` : ""}${KIT.speechReady() ? `<button type="button" class="lis" aria-label="Listen to this scene">🔊 Listen</button>` : ""}</div>`;
     }
     function taskHtml(m, t, ti) {
       const A = (ST.ans[m.id] || {})[ti] || {};
@@ -300,8 +300,9 @@ body.dark-mode .kl-doc{background:#fbf7ee}
       const sel = host.querySelector(".kl-mob select"); if (sel) sel.addEventListener("change", () => go(+sel.value));
       host.querySelectorAll("[data-nav]").forEach(b => b.addEventListener("click", () => go(cur + +b.dataset.nav)));
       const lis = host.querySelector(".lis"); if (lis) lis.addEventListener("click", async () => {
-        const g = ++speakingGen; KIT.hush(); lis.textContent = "⏹ Stop"; lis.onclick = () => { speakingGen++; KIT.hush(); lis.textContent = "🔊 Listen"; };
-        for (const b of m.beat) { if (g !== speakingGen) break; await KIT.speak(b[3], b[0], P, b[1] === "angry" ? "shout" : b[1] === "think" ? "think" : "", () => g === speakingGen); }
+        const g = ++speakingGen; KIT.hush(); lis.textContent = "⏹ Stop"; lis.onclick = () => { speakingGen++; KIT.hush(); host.querySelectorAll(".kl-beat .ch.talk").forEach(c => c.classList.remove("talk")); lis.textContent = "🔊 Listen"; };
+        for (const b of m.beat) { if (g !== speakingGen) break; const ch = host.querySelector(`.kl-beat .ch[data-who="${b[0]}"]`); if (ch) ch.classList.add("talk"); await KIT.speak(b[3], b[0], P, b[1] === "angry" ? "shout" : b[1] === "think" ? "think" : "", () => g === speakingGen); if (ch) ch.classList.remove("talk"); }
+        host.querySelectorAll(".kl-beat .ch.talk").forEach(c => c.classList.remove("talk"));
         if (g === speakingGen) lis.textContent = "🔊 Listen";
       });
       const A = ST.ans[m.id] = ST.ans[m.id] || {};

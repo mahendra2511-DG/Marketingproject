@@ -93,6 +93,13 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
 .kb.done{opacity:1;transform:none}
 .kb .caret{display:inline-block;width:2px;height:1em;background:var(--acc);margin-left:1px;vertical-align:-2px;animation:caret .7s steps(1) infinite}
 @keyframes caret{50%{opacity:0}}
+.ch .lip{opacity:0;transition:opacity .12s}
+.ch.talk .lip{opacity:1}
+.ch .lip .lo{transform-box:fill-box;transform-origin:50% 40%;transform:scaleY(.04)}
+.ch.talk .lip .lo{animation:lipTalk 1.15s linear infinite}
+.ch.talk .lip .lo.alt{animation-duration:.95s}
+@keyframes lipTalk{0%{transform:scaleY(.04)}8%{transform:scaleY(.85)}15%{transform:scaleY(.3)}24%{transform:scaleY(1)}31%{transform:scaleY(.45)}38%{transform:scaleY(.04)}46%{transform:scaleY(.7)}55%{transform:scaleY(.25)}63%{transform:scaleY(.95)}71%{transform:scaleY(.4)}79%{transform:scaleY(.04)}87%{transform:scaleY(.6)}94%{transform:scaleY(.2)}100%{transform:scaleY(.04)}}
+@media (prefers-reduced-motion:reduce){.ch.talk .lip .lo{animation:none;transform:scaleY(.5)}}
 .ch .mo{opacity:0}
 .ch.talk .mouth{animation:mA .3s steps(1) infinite}.ch.talk .mo{animation:mB .3s steps(1) infinite}
 @keyframes mA{0%{opacity:1}50%{opacity:0}}@keyframes mB{0%{opacity:0}50%{opacity:1}}
@@ -305,10 +312,22 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     L.forEach(([f, tags]) => { const t = " " + tags + " "; const s = (t.includes(" " + mood + " ") ? 2 : 0) + (t.includes(" " + pose + " ") ? 1.5 : 0); if (s > bs) { bs = s; best = [f, tags]; } });
     return best[0];
   }
+  /* lip-sync: a talking mouth drawn exactly over each artwork's own mouth; only visible while the character speaks */
+  const SPR_MOUTH = {"ankita-idea":[100,80,24,9,"#faa277","#c35941"],"ankita-think":[103,78,16,6,"#fda87e","#c55c45"],"ankita":[106.5,81,22,10,"#fba37d","#c45a45"],"arjun-marker":[99,75.5,28,10,"#fb9d72","#c4563f"],"arjun-wow":[88.5,78.5,15,11,"#f69e76","#c05741"],"arjun":[90,75.5,28,11,"#f69771","#c0533e"],"kabir-happy":[106.5,82,31,13,"#f8a076","#c15841"],"kabir":[105,83,30,12,"#f99f76","#c25741"],"mahendra-explain":[92.5,79,25,13,"#241a27","#b9746c",0.95,1.55],"mahendra-shrug":[114,76,28,12,"#2a1b22","#b9746c",0.95,1.55],"mahendra":[93.5,81,25,9,"#2e1c22","#b9746c",0.95,1.55],"neha-smile":[89,79,22,10,"#fca47d","#c55a45"],"neha":[84,79,23,10,"#fba27c","#c45944"],"priya-angry":[105.5,102.5,20,6,"#f89e79","#c15743"],"priya-happy":[96.5,99,25,8,"#fb9e78","#c45742"],"priya":[93,102.5,25,7,"#faa17c","#c35944"],"rakesh-worried":[91,87,20,6,"#e9875e","#b64a33"],"rakesh":[97,87.5,21,6,"#ee8f66","#ba4f38"],"rakesh2-worried":[91,87,20,6,"#e8875e","#b54a34"],"rakesh2":[97,87.5,21,6,"#ee9067","#ba4f39"],"riya-think":[68,91.5,19,6,"#fdab84","#c55e49"],"riya":[64.5,95.5,25,8,"#faa47e","#c35a45"],"you-confused":[109,88,18,6,"#fba579","#c45b43"],"you-worried":[105,88.5,19,6,"#fca87d","#c55c45"]};
+  function lipSvg(f, X, Y, k) {
+    const m = SPR_MOUTH[f]; if (!m) return "";
+    const [cx, cy, w, h, skin, lip, cs, cv] = m, x = X + cx * k, y = Y + cy * k, cf = cs || 1.3, vf = cv || cf + .05;
+    const cw = (w / 2 + 2.6) * k, ch = (h / 2 + 2.4) * k, mw = Math.max(4.2, w * .34) * k, mh = Math.max(3.4, Math.max(h * .5, w * .24)) * k, g = "kl-" + f;
+    return `<g class="lip" aria-hidden="true"><defs><radialGradient id="${g}"><stop offset=".62" stop-color="${skin}"/><stop offset="1" stop-color="${skin}" stop-opacity="0"/></radialGradient></defs>
+      <ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(cw * cf).toFixed(1)}" ry="${(ch * vf).toFixed(1)}" fill="url(#${g})"/>
+      <g class="lo"><ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${mw.toFixed(1)}" ry="${mh.toFixed(1)}" fill="#4a1518"/><rect x="${(x - mw * .6).toFixed(1)}" y="${(y - mh * .82).toFixed(1)}" width="${(mw * 1.2).toFixed(1)}" height="${(mh * .36).toFixed(1)}" rx="${(mh * .2).toFixed(1)}" fill="#fbf7f2"/><ellipse cx="${x.toFixed(1)}" cy="${(y + mh * .55).toFixed(1)}" rx="${(mw * .62).toFixed(1)}" ry="${(mh * .42).toFixed(1)}" fill="#c4505a"/></g>
+      <path d="M${(x - mw * 1.08).toFixed(1)} ${y.toFixed(1)} Q${x.toFixed(1)} ${(y - mh * .35).toFixed(1)} ${(x + mw * 1.08).toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${lip}" stroke-width="${(1.3 * k).toFixed(2)}" stroke-linecap="round" opacity=".85"/></g>`;
+  }
   function spriteFigure(id, mood, pose) {
     const f = spriteFile(id, mood, pose), d = SPR_DIM[f] || [200, 200], k = 0.9;   // every sprite at the same scale, like the original sheet
     const w = d[0] * k, h = d[1] * k;
-    return `<svg viewBox="0 0 160 214" aria-hidden="true" class="spr-svg" overflow="visible"><ellipse cx="80" cy="212" rx="56" ry="4" fill="#0f172a" opacity=".10"/><g class="bd"><g class="hd spr"><image href="${CAST_BASE + f}.webp" x="${(80 - w / 2).toFixed(1)}" y="${(214 - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/></g></g></svg>`;
+    const X = 80 - w / 2, Y = 214 - h;
+    return `<svg viewBox="0 0 160 214" aria-hidden="true" class="spr-svg" overflow="visible"><ellipse cx="80" cy="212" rx="56" ry="4" fill="#0f172a" opacity=".10"/><g class="bd"><g class="hd spr"><image href="${CAST_BASE + f}.webp" x="${X.toFixed(1)}" y="${Y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>${lipSvg(f, X, Y, k)}</g></g></svg>`;
   }
   // who gets which artwork: the BI team is fixed; client people get a face that matches their gender
   function castPeople(P) {
@@ -642,7 +661,21 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   }
   const NATURAL = (v) => !!v && QUAL(v) >= 2;
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  function hushAll() { if (SPEECH) try { speechSynthesis.cancel(); } catch (e) {} }
+  let lastCancel = 0, noAudio = 0, VREADY = null;
+  function hushAll() { if (SPEECH) try { speechSynthesis.cancel(); lastCancel = Date.now(); } catch (e) {} }
+  // Chrome fills the voice list a moment after load: wait for it (max 2 s) instead of staying silent
+  function voicesReady() {
+    if (!SPEECH) return Promise.resolve(false);
+    if (speechSynthesis.getVoices().length) return Promise.resolve(true);
+    if (!VREADY) VREADY = new Promise(res => { let t = 0; const done = () => { clearTimeout(t); voices(); res(speechSynthesis.getVoices().length > 0); }; try { speechSynthesis.addEventListener("voiceschanged", done, { once: true }); } catch (e) {} t = setTimeout(done, 2000); });
+    return VREADY;
+  }
+  // voice is on unless the student switched it off, or the device proved it plays no audio at all
+  const canSpeak = () => SPEECH && prefs.on && noAudio < 2;
+  // iPhone / Safari / Chrome only allow speech after a tap: "unlock" it on the very first tap or key press
+  if (SPEECH) { const ev = ["pointerdown", "touchstart", "keydown"], unlock = () => { try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch (e) {} ev.forEach(t => document.removeEventListener(t, unlock, true)); }; ev.forEach(t => document.addEventListener(t, unlock, true)); }
+  if (SPEECH) setInterval(() => { try { if (speechSynthesis.speaking && speechSynthesis.paused) speechSynthesis.resume(); } catch (e) {} }, 4000);
+  const KEEP = [];   // Chrome bug: an utterance that gets garbage-collected never fires "end"; keep a reference
   // split into natural phrases: real sentence ends only (not "4.2" or "Dr."), and join short sentences so the voice flows instead of stopping and starting
   function phrases(t) {
     const raw = t.replace(/\b(Dr|Mr|Mrs|Ms|vs|etc|e\.g|i\.e)\./gi, "$1․").split(/(?<=[.!?])\s+(?=["'(A-Z0-9])/);
@@ -653,8 +686,10 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   // speak(text, characterKey, people, kind, alive) → Promise<boolean>; alive() returning false stops it at once
   async function speak(text, key, P, kind, alive) {
     alive = alive || (() => true);
-    if (!SPEECH || !prefs.on || RM() || !speechSynthesis.getVoices().length) return true;
+    if (!canSpeak()) return true;
     const t = speechText(text); if (!t) return true;
+    await voicesReady(); if (!alive()) return false;
+    if (Date.now() - lastCancel < 120) await sleep(120);   // Chrome drops an utterance spoken right after cancel()
     const vf = voiceFor(key, P), nat = NATURAL(vf.voice);
     // calm, clear delivery: emotion is only a light touch on speed (never on pitch for human-like voices)
     const mood = { shout: [1.03, 1.02], think: [0.94, 1], whisper: [0.95, 1], narr: [0.96, 1] }[kind] || [1, 1];
@@ -669,9 +704,12 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
         let done = false, started = false; const fin = (v) => { if (done) return; done = true; clearInterval(iv); clearTimeout(lim); res(v); };
         u.onstart = () => { started = true; }; u.onend = () => fin(true); u.onerror = () => fin(true);
         const lim = setTimeout(() => fin(true), 3000 + parts[i].length * 100 / vf.rate);
-        setTimeout(() => { if (!started && !speechSynthesis.speaking) fin(true); }, 1600);   // no audio on this device: don't hold anything up
+        // network voices can take a few seconds to start; only give up when nothing is speaking or queued
+        setTimeout(() => { if (!started && !speechSynthesis.speaking && !speechSynthesis.pending) { noAudio++; fin(true); } }, 3500);
+        u.addEventListener("start", () => { noAudio = 0; });
         const iv = setInterval(() => { if (!alive()) { hushAll(); fin(false); } }, 120);
-        try { speechSynthesis.speak(u); } catch (e) { fin(true); }
+        KEEP.push(u); if (KEEP.length > 6) KEEP.shift();
+        try { if (speechSynthesis.paused) speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) { fin(true); }
       });
       if (!ok) return false;
       if (i < parts.length - 1) await sleep(/[,;:]$/.test(parts[i]) ? 140 : /\?$/.test(parts[i]) ? 380 : 300);   // a natural breath between sentences
@@ -820,7 +858,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     // speak one line; resolves when the voice finishes (or is stopped). Chrome sometimes never fires "end", so there is a time limit.
     function say(text, key, g, kind) { return speak(text, key, P, kind || (key === "narr" ? "narr" : ""), () => g === gen); }
     function sayOld(text, key, g) {
-      if (!SPEECH || !prefs.on || RM() || !speechSynthesis.getVoices().length) return Promise.resolve(true);
+      if (!canSpeak()) return Promise.resolve(true);
       const t = speechText(text); if (!t) return Promise.resolve(true);
       return new Promise(res => {
         const u = new SpeechSynthesisUtterance(t), vf = voiceFor(key, P);
@@ -885,7 +923,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
         b.classList.add("show");
         if (who) who.classList.add("talk");
         const line = [...b.childNodes].filter(n => !(n.classList && (n.classList.contains("who") || n.classList.contains("why") || n.classList.contains("caret")))).map(n => n.textContent).join(" ");
-        const voiceOn = SPEECH && prefs.on && !RM() && speechSynthesis.getVoices().length > 0;
+        const voiceOn = canSpeak();
         const spoken = voiceOn ? say(line, b.dataset.who, g, b.classList.contains("shout") ? "shout" : b.classList.contains("think") ? "think" : "") : null;
         let ok = await typeOut(b, g, voiceOn ? estMs(line) * 0.85 : 0);
         if (spoken) ok = (await spoken) && ok;
