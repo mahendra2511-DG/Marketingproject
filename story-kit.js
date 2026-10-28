@@ -61,6 +61,7 @@
 
 /* ---------- story (clean professional storyboard) ---------- */
 .ko{--ln:#e3e7ec;--y:#fff7e0;--acc:var(--teal,#0E86C9);--acc-t:var(--teal-tint,#E6F3FA);--acc-d:var(--teal-deep,#0A5A87);--amb:var(--amber,#A15C07);--tx:#1d2532;--mut:#5b6472;max-width:1100px;margin:0 auto}
+.ko-gpick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:var(--amber-tint,#FBF0DD);border:1px solid var(--line,#DDE2E0);font-size:13.5px;color:var(--ink,#1d2532)}.ko-gpick button{border:1px solid var(--line,#d0d6de);background:#fff;border-radius:99px;padding:6px 12px;font:600 13px var(--body,inherit);cursor:pointer}
 .ko-eps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 14px}
 .ko-eps button{display:flex;align-items:center;gap:9px;text-align:left;border:1px solid var(--line,#DDE2E0);background:var(--paper-raised,#fff);color:var(--ink,#1d2532);border-radius:12px;padding:9px 10px;cursor:pointer;font:inherit;min-width:0}
 .ko-eps button:hover{border-color:var(--acc)}
@@ -332,7 +333,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   // who gets which artwork: the BI team is fixed; client people get a face that matches their gender
   function castPeople(P) {
     const fixed = { lead: "mahendra", pm: "riya", ba: "arjun", de: "neha", qa: "kabir", you: "you" };
-    Object.keys(fixed).forEach(k => { if (P[k]) P[k].look = Object.assign({}, P[k].look, { sprite: fixed[k] }); });
+    Object.keys(fixed).forEach(k => { if (P[k]) P[k].look = Object.assign({}, P[k].look, { sprite: P[k].sprite || fixed[k] }); });
     const pool = { f: ["priya", "ankita"], m: ["rakesh", "rakesh2"] };
     ["sp", "us", "ow"].forEach(k => {
       const p = P[k]; if (!p) return;
@@ -542,16 +543,20 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
       <div class="kp-talk">${talk}</div><div class="kp-cast ${pn.table ? "tbl" : ""}">${cast}${pn.table ? TABLE2f() + `<span class="kp-brand">${esc(CO)}</span>` : ""}</div>${pn.note ? `<div class="kp-note">${pn.note}</div>` : ""}</div>`;
   }
   function people(D) {
-    const yn = (() => { try { const p = window.VK_AUTH && window.VK_AUTH.profile && window.VK_AUTH.profile(); if (p && p.name) return String(p.name).split(" ")[0]; } catch (e) {} return ""; })();
+    const prof = (() => { try { return (window.VK_AUTH && window.VK_AUTH.profile && window.VK_AUTH.profile()) || {}; } catch (e) { return {}; } })();
+    const lsg = (() => { try { return localStorage.getItem("ko_gender") || ""; } catch (e) { return ""; } })();
+    const full = String(prof.name || "").replace(/\s+/g, " ").trim(), trainer = /^mahendra\b/i.test(full) || !!prof.trainer;
+    const yn = trainer ? "" : full.split(" ")[0];
+    const girl = !trainer && (prof.gender || lsg) === "f";
     const mk = (o) => Object.assign({ side: "Client" }, o, { short: o.name.replace(/^Dr\.\s*/, "Dr. ").split(" ").slice(0, o.name.startsWith("Dr.") ? 2 : 1).join(" ") });
     return castPeople({
       sp: mk(D.sponsor), us: mk(D.user), ow: mk(D.owner),
       lead: { g: "m", name: "Mahendra Singh", short: "Mahendra", role: "BI Lead · your trainer", side: "BI team", cares: "Solving the right problem, quality, weekly demos.", look: { skin: "#D29A72", hair: "#17110d", hs: "side", top: "#1e3a8a", wear: "blazer", inner: "#e0f2fe", glasses: true, beard: true } },
       pm: { g: "f", name: "Riya Kapoor", short: "Riya", role: "Project Manager", side: "BI team", cares: "Timeline, owners, risks and status updates.", look: { skin: "#E8B58F", hair: "#2b1810", hs: "bun", top: "#9f1239", wear: "blazer", inner: "#fff", earrings: true, lanyard: "#0E86C9" } },
       ba: { g: "m", name: "Arjun Mehta", short: "Arjun", role: "Business Analyst", side: "BI team", cares: "Requirements, user stories, KPI definitions.", look: { skin: "#C98B62", hair: "#1a1a1a", hs: "short", top: "#f1f5f9", wear: "shirt", inner: "#fff", tie: "#1d4ed8", stubble: true } },
-      de: { g: "f", name: "Neha Iyer", short: "Neha", role: "Data Engineer", side: "BI team", cares: "Pipelines, data quality, refresh on time.", look: { skin: "#DFA67F", hair: "#2a1a10", hs: "long", top: "#6d28d9", wear: "hoodie", earrings: true } },
+      de: girl ? { g: "m", name: "Ankush Verma", short: "Ankush", sprite: "you", role: "Data Engineer", side: "BI team", cares: "Pipelines, data quality, refresh on time.", look: { skin: "#C68A63", hair: "#1c120c", hs: "curly", top: "#0f766e", wear: "hoodie" } } : { g: "f", name: "Neha Iyer", short: "Neha", role: "Data Engineer", side: "BI team", cares: "Pipelines, data quality, refresh on time.", look: { skin: "#DFA67F", hair: "#2a1a10", hs: "long", top: "#6d28d9", wear: "hoodie", earrings: true } },
       qa: { g: "m", name: "Kabir Sheikh", short: "Kabir", role: "QA / Test Analyst", side: "BI team", cares: "Every number on a dashboard must match SQL.", look: { skin: "#B97B54", hair: "#121212", hs: "spiky", top: "#15803d", wear: "tee", glasses: true } },
-      you: { name: yn ? yn + " (you)" : "You", short: yn || "You", role: "Data Analyst / BI Developer", side: "BI team", cares: "SQL, KPIs, Excel, Tableau, Power BI, the story.", look: { skin: "#C68A63", hair: "#1c120c", hs: "curly", top: "#0f766e", wear: "hoodie" } }
+      you: { g: girl ? "f" : "m", name: yn ? full + " (you)" : "Ankush Verma", short: yn || "Ankush", learner: trainer ? "" : full, sprite: girl ? "neha" : "you", role: "Data Analyst / BI Developer (that's you)", side: "BI team", cares: "SQL, KPIs, Excel, Tableau, Power BI, the story.", look: girl ? { skin: "#DFA67F", hair: "#2a1a10", hs: "long", top: "#6d28d9", wear: "hoodie", earrings: true } : { skin: "#C68A63", hair: "#1c120c", hs: "curly", top: "#0f766e", wear: "hoodie" } }
     });
   }
   function pages(D) {
@@ -592,11 +597,11 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     out.push({ t: "Where does the data live?", panels: [
       { w: 3, bg: "meeting", table: true, cap: "10:45 AM · data reality check", cast: [["ow", 28, "think", "laptop"], ["de", 76, "worry", "laptop", true]], say: [["ow", D.dataIntro], ["de", "I profiled a sample export last night. You need to see this before we promise any numbers."]] },
       { w: 3, info: `<div class="kg kg1">${D.arch.sources.map(s => card("", "Source system", s[0], s[1])).join("")}</div>`, cap: "Source systems" },
-      { w: 4, info: `<div class="kg kg3">${D.issues.map(x => card("warn", "⚠ Data issue", x[0], x[1])).join("")}</div>`, cap: "What Neha found" },
+      { w: 4, info: `<div class="kg kg3">${D.issues.map(x => card("warn", "⚠ Data issue", x[0], x[1])).join("")}</div>`, cap: "What " + esc(P.de.short) + " found" },
       { w: 2, bg: "desk", cast: [["qa", 50, "smile", "note"]], say: [["qa", "I'll write <b>test cases</b>: every dashboard number must match SQL. ✔"]] }] });
     // 8 — architecture
     out.push({ t: "How the data will flow", arch: true, panels: [
-      { w: 6, bg: "board", cap: "11:00 AM · Neha grabs the marker", cast: [["de", 16, "happy", "marker"], ["you", 84, "wow", "idle", true]], say: [["de", D.archTalk], ["you", "So the dashboards never touch the raw systems directly?"], ["de", "Never. <b>One governed model</b>, and every tool reads from it."]] },
+      { w: 6, bg: "board", cap: "11:00 AM · " + esc(P.de.short) + " grabs the marker", cast: [["de", 16, "happy", "marker"], ["you", 84, "wow", "idle", true]], say: [["de", D.archTalk], ["you", "So the dashboards never touch the raw systems directly?"], ["de", "Never. <b>One governed model</b>, and every tool reads from it."]] },
       { w: 6, info: `<div class="ko-arch"></div>`, cap: "The architecture (live)" }] });
     // 9 — KPIs
     out.push({ t: "Agree the KPIs, in writing", panels: [
@@ -607,11 +612,11 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     out.push({ t: "The plan", panels: [
       { w: 6, bg: "board", cap: "11:40 AM · Riya takes the stage", cast: [["pm", 16, "smile", "marker"], ["sp", 84, "smile", "idle", true]], say: [["pm", `We demo <b>every week</b>, so ${esc(sp)} can steer early instead of being surprised at the end.`], ["sp", "Good. No big-bang reveal on the last day."]] },
       { w: 6, info: `<div class="ktime">${STG.map((s, i) => `<div><span class="dt">${s[2]}</span><h6>${s[0]}</h6><div class="wk">${s[1]}</div><p>${esc(D.plan[i])}</p></div>`).join("")}</div>`, cap: "Milestones", note: "🎯 This is your capstone: these are the group presentations on the Project Schedule." },
-      { w: 3, info: card("", "Owners", "Who does what", "", `<p>✅ <b>${esc(D.sponsor.name)}</b>: approves scope, signs off each milestone<br>✅ <b>${esc(D.owner.name)}</b>: data access within 1 day<br>✅ <b>${esc(D.user.name)}</b>: tests the dashboard as a real user<br>✅ <b>Riya</b>: plan & status · <b>Arjun</b>: requirements<br>✅ <b>Neha</b>: pipeline · <b>Kabir</b>: QA against SQL<br>✅ <b>${esc(P.you.short)}</b>: KPIs, Excel, Tableau, Power BI, the story</p>`), cap: "Who does what" },
-      { w: 3, info: card("warn", "Risks → what we do", "Risk register", "", D.risks.map(r => `<p style="margin-top:5px">⚠ <b>${esc(r[0])}</b> → ${esc(r[1])}</p>`).join("")), cap: "Risks" }] });
+      { w: 3, info: card("", "Owners", "Who does what", "", `<p>✅ <b>${esc(D.sponsor.name)}</b>: approves scope, signs off each milestone<br>✅ <b>${esc(D.owner.name)}</b>: data access within 1 day<br>✅ <b>${esc(D.user.name)}</b>: tests the dashboard as a real user<br>✅ <b>Riya</b>: plan & status · <b>Arjun</b>: requirements<br>✅ <b>${esc(P.de.short)}</b>: pipeline · <b>Kabir</b>: QA against SQL<br>✅ <b>${esc(P.you.short)}</b>: KPIs, Excel, Tableau, Power BI, the story</p>`), cap: "Who does what" },
+      { w: 3, info: card("warn", "Risks → what we do", "Risk register", "", D.risks.map(r => `<p style="margin-top:5px">⚠ <b>${esc(r[0])}</b> → ${esc(P.de.short === "Neha" ? r[1] : String(r[1]).replace(/\bNeha\b/g, P.de.short))}</p>`).join("")), cap: "Risks" }] });
     // 11 — wrap
     out.push({ t: "Minutes of meeting", panels: [
-      { w: 4, info: `<div class="kmom"><h5>📝 MoM · ${esc(D.project)} kick-off</h5><p style="margin:0 0 8px"><b>Goal:</b> ${esc(D.goal)}</p><table><thead><tr><th>Action item</th><th>Owner</th><th>Due</th></tr></thead><tbody>${D.actions.map(a => `<tr><td>${esc(a[0])}</td><td>${esc(a[1] === "YOU" ? P.you.short : a[1])}</td><td>${esc(a[2])}</td></tr>`).join("")}</tbody></table></div>`, cap: "12:05 PM · you send the minutes", bgc: "#fffdf5" },
+      { w: 4, info: `<div class="kmom"><h5>📝 MoM · ${esc(D.project)} kick-off</h5><p style="margin:0 0 8px"><b>Goal:</b> ${esc(D.goal)}</p><table><thead><tr><th>Action item</th><th>Owner</th><th>Due</th></tr></thead><tbody>${D.actions.map(a => `<tr><td>${esc(a[0])}</td><td>${esc(a[1] === "YOU" ? P.you.short : a[1] === "Neha" ? P.de.short : a[1])}</td><td>${esc(a[2])}</td></tr>`).join("")}</tbody></table></div>`, cap: "12:05 PM · you send the minutes", bgc: "#fffdf5" },
       { w: 2, bg: "meeting", table: true, sfx: "Agreed", cast: [["sp", 30, "happy", "present"], ["lead", 72, "happy", "present", true]], say: [["sp", esc(D.quote)]] },
       { w: 6, bg: "desk", cap: "Back at the BI office", cast: [["pm", 12, "happy", "cheer"], ["you", 36, "happy", "cheer"], ["de", 60, "happy", "laptop"], ["lead", 86, "smile", "wave", true]], say: [["you", "That was way more useful than I expected! 🙌"], ["lead", "A good kick-off saves weeks of rework. Now the real work starts."]] }] });
     // 12 — teaser + quiz
@@ -647,7 +652,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   // each character keeps ONE steady voice for the whole story. Pitch changes are kept tiny: big pitch shifts are what make browser voices sound robotic.
   function voiceFor(key, P) {
     const V = VOICES || voices(); const p = P[key] || {};
-    const g = key === "narr" ? "f" : key === "you" ? prefs.you : p.g || (FEMALE.has(String(p.short || "").toLowerCase()) ? "f" : "m");
+    const g = key === "narr" ? "f" : key === "you" ? (p.g || "m") : p.g || (FEMALE.has(String(p.short || "").toLowerCase()) ? "f" : "m");
     const order = { f: ["narr", "sp", "us", "pm", "ow", "de", "you"], m: ["lead", "sp", "us", "ow", "ba", "qa", "you"] }[g];
     const list = (V && V[g]) || [];
     const idx = Math.max(0, order.indexOf(key));
@@ -751,7 +756,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     if (ep === 2) {
       out.push({ t: "Monday, 9:05 AM", panels: [
         { w: 6, bg: "desk", cap: "BI team office · week 1 begins", cast: [["de", 16, "worry", "laptop"], ["you", 44, "worry", "facepalm"], ["lead", 84, "smile", "present", true]], say: [["de", D.ep2 || "The export just landed, and it needs cleaning before we count anything."], ["you", "So we can't trust the export as it is?"], ["lead", "Never on day one. <b>Week 1 is Excel week</b>: clean first, count second, chart last."]] },
-        { w: 6, info: `<div class="kg kg3">${(D.issues || []).map(x => card("warn", "⚠ Found in the data", x[0], x[1])).join("")}</div>`, cap: "What Neha found in the export" }] });
+        { w: 6, info: `<div class="kg kg3">${(D.issues || []).map(x => card("warn", "⚠ Found in the data", x[0], x[1])).join("")}</div>`, cap: "What " + esc(P.de.short) + " found in the export" }] });
       out.push({ t: "Clean it in Excel", panels: [
         { w: 6, info: `<div class="kg kg4">${[["Remove duplicates", "Data → Remove Duplicates on the ID columns. Count rows before and after, and write both numbers down."], ["One date format", "Text to Columns or DATEVALUE, then format every date as YYYY-MM-DD so months never swap."], ["Tidy the text", "TRIM and PROPER, plus a small mapping table with XLOOKUP for names that mean the same thing."], ["Flag, don't delete", "Add an is_valid column instead of deleting rows, so you can explain exactly what you excluded."]].map((c, i) => card("ok", "Step " + (i + 1), c[0], c[1])).join("")}</div>`, cap: "Your cleaning checklist", note: "💡 Keep a 'Cleaning log' sheet: every change you made, and how many rows it touched. Trainers always ask." },
         { w: 3, bg: "desk", cap: "An hour later", cast: [["you", 28, "happy", "laptop"], ["qa", 76, "smile", "note", true]], say: [["you", `Done! Rows in, rows removed and rows out all add up.`], ["qa", "That's the first QA check passed. ✔ Now the KPIs."]] },
@@ -800,7 +805,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
       const star = `<div style="position:relative;display:grid;grid-template-columns:1fr 1.3fr 1fr;grid-template-rows:auto auto auto;gap:10px;align-items:center;justify-items:center;font:600 12px/1.3 var(--body,inherit)">${[["📅 dim_date", "when"], ["👤 Who", "customer / patient / employee"], ["📦 What", "product / campaign / policy"], ["📍 Where", "channel / region / branch"]].map((d, i) => `<div style="grid-column:${[1, 3, 1, 3][i]};grid-row:${[1, 1, 3, 3][i]};background:#fff;border:1px solid #d6dbe2;border-radius:10px;padding:8px 10px;text-align:center;min-width:120px"><b>${d[0]}</b><div style="font-size:10.5px;color:#64748b">${d[1]}</div></div>`).join("")}<div style="grid-column:2;grid-row:2;background:var(--acc-t);border:2px solid var(--acc);border-radius:12px;padding:12px;text-align:center"><b>⭐ Fact table</b><div style="font-size:11px;color:#3d4653">${esc(mart[0])} · ${esc(mart[1])}</div><div style="font-size:10.5px;color:#64748b;margin-top:3px">one row = one event, with keys + numbers</div></div></div>`;
       out.push({ t: "The star", panels: [
         { w: 6, bg: "board", cap: "Monday · week 3 · Power BI", cast: [["de", 16, "happy", "marker"], ["you", 84, "wow", "idle", true]], say: [["de", "Power BI week means <b>modelling</b>. One fact table in the middle with the numbers, dimension tables around it with the descriptions."], ["you", "A star! So every filter comes from a dimension and flows into the fact."], ["de", "Exactly. <b>One-to-many</b>, dimension to fact, single direction."]] },
-        { w: 4, info: star, cap: "Neha's star schema" },
+        { w: 4, info: star, cap: esc(P.de.short) + "'s star schema" },
         { w: 2, info: `<div class="kg kg1">${[["Date table", "Mark it as a date table. Time intelligence needs it."], ["Hide the keys", "Users see names, not IDs."], ["Measures, not columns", "KPIs are DAX measures, never calculated columns."]].map(c => card("ok", "Rule", c[0], c[1])).join("")}</div>`, cap: "Model rules" }] });
       out.push({ t: "“Same number in every row?”", panels: [
         { w: 6, bg: "desk", cap: "Wednesday · DAX", cast: [["you", 18, "worry", "laptop"], ["qa", 52, "think", "note"], ["lead", 84, "smile", "present", true]], say: [["you", `I wrote <b>${esc(k0[0])}</b> in DAX, but it shows the same number in every row of my table!`, "shout"], ["qa", "Then the dimension isn't filtering the fact. Check the <b>relationship</b> in the model view."], ["lead", "And use <b>DIVIDE()</b>, so a blank or a zero never breaks the report."]] },
@@ -844,10 +849,9 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     ep = Math.max(1, Math.min(5, ep)); try { localStorage.setItem(EPK, ep); } catch (e) {}
     const E = EPISODES[ep - 1];
     const S = ep > 1 ? episodePages(D, ep) : pages(D), P = people(D); let si = 0, beat = 0, playing = false, gen = 0, busy = false, timer = 0;
-    host.innerHTML = `<div class="ko"><div class="ko-eps" role="tablist" aria-label="Episodes">${EPISODES.map(e => `<button type="button" role="tab" data-ep="${e.n}" class="${e.n === ep ? "on" : ""}" aria-selected="${e.n === ep}"><span class="em">${e.em}</span><span><b>Ep ${e.n} · ${esc(e.t)}</b><small>${esc(e.wk)}</small></span></button>`).join("")}</div><div class="ko-head"><div><span class="ko-ep">🎬 Episode ${ep} · ${esc(E.wk)} · ${S.length} pages</span><h2>${esc(E.t)}: ${esc(D.project)}</h2><p>${ep === 1 ? "Watch a real Data Analyst kick-off meeting play out: the client, the BI team and you." : "What really happens in " + esc(E.wk.split("·")[1].trim()) + " week, and what to show in your presentation."} Press <b>Play</b> to watch it like a video, or <b>Next</b> to go at your own pace.</p></div></div>
+    host.innerHTML = `<div class="ko">${(() => { const pr = (() => { try { return (window.VK_AUTH && window.VK_AUTH.profile && window.VK_AUTH.profile()) || {}; } catch (e) { return {}; } })(); let lg = ""; try { lg = localStorage.getItem("ko_gender") || ""; } catch (e) {} return P.you.learner && !pr.gender && !lg ? `<div class="ko-gpick"><b>Choose your character in the story:</b><button type="button" data-g="m">👦 Boy</button><button type="button" data-g="f">👧 Girl</button></div>` : ""; })()}<div class="ko-eps" role="tablist" aria-label="Episodes">${EPISODES.map(e => `<button type="button" role="tab" data-ep="${e.n}" class="${e.n === ep ? "on" : ""}" aria-selected="${e.n === ep}"><span class="em">${e.em}</span><span><b>Ep ${e.n} · ${esc(e.t)}</b><small>${esc(e.wk)}</small></span></button>`).join("")}</div><div class="ko-head"><div><span class="ko-ep">🎬 Episode ${ep} · ${esc(E.wk)} · ${S.length} pages</span><h2>${esc(E.t)}: ${esc(D.project)}</h2><p>${ep === 1 ? "Watch a real Data Analyst kick-off meeting play out: the client, the BI team and you." : "What really happens in " + esc(E.wk.split("·")[1].trim()) + " week, and what to show in your presentation."} Press <b>Play</b> to watch it like a video, or <b>Next</b> to go at your own pace.</p></div></div>
       <div class="ko-play"><button type="button" class="big">▶ Play the story</button>
         ${SPEECH ? `<button type="button" class="ko-vbtn" data-v="on" aria-pressed="${prefs.on}">${prefs.on ? "🔊 Voices on" : "🔇 Voices off"}</button>
-        <label class="ko-vsel">Your voice <select data-v="you"><option value="m" ${prefs.you === "m" ? "selected" : ""}>👨 Male</option><option value="f" ${prefs.you === "f" ? "selected" : ""}>👩 Female</option></select></label>
         <label class="ko-vsel">Speed <select data-v="rate">${[[0.85, "Slow"], [1, "Normal"], [1.15, "Fast"]].map(r => `<option value="${r[0]}" ${+prefs.rate === r[0] ? "selected" : ""}>${r[1]}</option>`).join("")}</select></label>` : ""}
         <span class="ko-vinfo">${SPEECH ? "Every character speaks in their own voice. " : ""}Lines type out and pages turn by themselves. Pause any time.</span></div>
       <div class="ko-book" tabindex="0" aria-roledescription="comic book"><div class="ko-slot"></div>
@@ -978,6 +982,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
         qe.querySelector(".fb").innerHTML = (ok ? "✅ <b>Correct!</b> " : "❌ <b>Not quite.</b> ") + esc(q[3]); })); });
     }
     function switchEp(n) { setPlay(false); gen++; hush(); renderDeck(host, D, n); const top = host.querySelector(".ko-eps"); if (top) top.scrollIntoView({ block: "start", behavior: RM() ? "auto" : "smooth" }); }
+    host.querySelectorAll(".ko-gpick [data-g]").forEach(bt => bt.addEventListener("click", () => { try { localStorage.setItem("ko_gender", bt.dataset.g); } catch (e) {} setPlay(false); gen++; hush(); renderDeck(host, D, ep); }));
     host.querySelectorAll(".ko-eps [data-ep]").forEach(bt => bt.addEventListener("click", () => { if (+bt.dataset.ep !== ep) switchEp(+bt.dataset.ep); }));
     go.addEventListener("click", () => { setPlay(false); next(); }); pv.addEventListener("click", prev);
     const toggle = () => { if (!playing && si === S.length - 1 && beat >= S[si].panels.length) { show(0); } setPlay(!playing); if (playing) book.scrollIntoView({ block: "start", behavior: "smooth" }); };
@@ -1007,6 +1012,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
     }
     const v = document.getElementById("ko-deck"); let built = false;
     const build = () => { if (built || !v) return; built = true; renderDeck(v, D); };
+    window.addEventListener("vk-account", () => { if (built) { try { speechSynthesis.cancel(); } catch (e) {} renderDeck(v, D); } });   // log in / switch account → the student's own character
     OPEN_EP = (n) => { try { localStorage.setItem(EPK, n); } catch (e) {} if (typeof window.switchView === "function") window.switchView("kickoff"); if (built) renderDeck(v, D, n); else build(); setTimeout(() => { const t = v && v.querySelector(".ko-eps"); if (t) t.scrollIntoView({ block: "start" }); }, 60); };
     const sec = document.getElementById("view-kickoff");
     if (sec) { if (sec.classList.contains("active")) build(); new MutationObserver(() => { if (sec.classList.contains("active")) build(); }).observe(sec, { attributes: true, attributeFilter: ["class"] }); }
