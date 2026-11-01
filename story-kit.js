@@ -95,7 +95,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
 .kb .caret{display:inline-block;width:2px;height:1em;background:var(--acc);margin-left:1px;vertical-align:-2px;animation:caret .7s steps(1) infinite}
 @keyframes caret{50%{opacity:0}}
 .ch .lip{opacity:0;transition:opacity .12s}
-.ch.talk .lip{opacity:1}
+.ch.talk .spr.ok .lip{opacity:1}
 .ch .lip .lo{transform-box:fill-box;transform-origin:50% 40%;transform:scaleY(.04)}
 .ch.talk .lip .lo{animation:lipTalk 1.15s linear infinite}
 .ch.talk .lip .lo.alt{animation-duration:.95s}
@@ -324,11 +324,17 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
       <g class="lo"><ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${mw.toFixed(1)}" ry="${mh.toFixed(1)}" fill="#4a1518"/><rect x="${(x - mw * .6).toFixed(1)}" y="${(y - mh * .82).toFixed(1)}" width="${(mw * 1.2).toFixed(1)}" height="${(mh * .36).toFixed(1)}" rx="${(mh * .2).toFixed(1)}" fill="#fbf7f2"/><ellipse cx="${x.toFixed(1)}" cy="${(y + mh * .55).toFixed(1)}" rx="${(mw * .62).toFixed(1)}" ry="${(mh * .42).toFixed(1)}" fill="#c4505a"/></g>
       <path d="M${(x - mw * 1.08).toFixed(1)} ${y.toFixed(1)} Q${x.toFixed(1)} ${(y - mh * .35).toFixed(1)} ${(x + mw * 1.08).toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${lip}" stroke-width="${(1.3 * k).toFixed(2)}" stroke-linecap="round" opacity=".85"/></g>`;
   }
-  function spriteFigure(id, mood, pose) {
+  // preload every artwork once, so faces are ready before anyone speaks
+  let SPR_PRE = false;
+  function preloadCast() { if (SPR_PRE) return; SPR_PRE = true; Object.keys(SPR_DIM).forEach(f => { const im = new Image(); im.src = CAST_BASE + f + ".webp"; }); }
+  // an artwork that didn't load (slow or dropped connection) is simply requested again, a few times; the character never changes
+  function spriteRetry(img) { try { const n = +(img.dataset.try || 0); if (n >= 4) return; img.dataset.try = n + 1; const base = String(img.getAttribute("href")).split("?")[0]; setTimeout(() => img.setAttribute("href", base + "?r=" + (n + 1) + "-" + Date.now()), 800 * (n + 1)); } catch (e) {} }
+  function spriteFigure(id, mood, pose, look) {
+    preloadCast();
     const f = spriteFile(id, mood, pose), d = SPR_DIM[f] || [200, 200], k = 0.9;   // every sprite at the same scale, like the original sheet
     const w = d[0] * k, h = d[1] * k;
     const X = 80 - w / 2, Y = 214 - h;
-    return `<svg viewBox="0 0 160 214" aria-hidden="true" class="spr-svg" overflow="visible"><ellipse cx="80" cy="212" rx="56" ry="4" fill="#0f172a" opacity=".10"/><g class="bd"><g class="hd spr"><image href="${CAST_BASE + f}.webp" x="${X.toFixed(1)}" y="${Y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>${lipSvg(f, X, Y, k)}</g></g></svg>`;
+    return `<svg viewBox="0 0 160 214" aria-hidden="true" class="spr-svg" overflow="visible" data-look="${encodeURIComponent(JSON.stringify(look || {}))}" data-mood="${esc(mood)}" data-pose="${esc(pose)}"><ellipse cx="80" cy="212" rx="56" ry="4" fill="#0f172a" opacity=".10"/><g class="bd"><g class="hd spr"><image href="${CAST_BASE + f}.webp" onload="this.parentNode.classList.add('ok')" onerror="window.KICKOFF_KIT&&KICKOFF_KIT._retry(this)" x="${X.toFixed(1)}" y="${Y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>${lipSvg(f, X, Y, k)}</g></g></svg>`;
   }
   // who gets which artwork: the BI team is fixed; client people get a face that matches their gender
   function castPeople(P) {
@@ -368,7 +374,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   const TABLE2f = () => `<svg class="kp-front" viewBox="0 0 400 42" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="kTbl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a5f3f"/><stop offset=".25" stop-color="#6f4a31"/><stop offset="1" stop-color="#5a3b27"/></linearGradient></defs><path d="M-10 42 L-10 12 Q200 -2 410 12 L410 42 Z" fill="url(#kTbl)"/><path d="M-10 12.5 Q200 -1.5 410 12.5" fill="none" stroke="#a87b57" stroke-width="2.5"/><g transform="translate(58 4)"><path d="M0 12 L30 12 L34 16 L-4 16 Z" fill="#cbd5e1"/><rect x="2" y="0" width="26" height="12" rx="1.5" fill="#334155"/></g><g transform="translate(300 3)"><path d="M0 12 L30 12 L34 16 L-4 16 Z" fill="#cbd5e1"/><rect x="2" y="0" width="26" height="12" rx="1.5" fill="#334155"/></g><g transform="translate(190 4)"><rect width="11" height="10" rx="2" fill="#f8fafc"/><path d="M11 3 q5 0 5 3 q0 3 -5 3" fill="none" stroke="#f8fafc" stroke-width="1.6"/></g><rect x="236" y="8" width="26" height="6" rx="1" fill="#fff" opacity=".9" transform="rotate(-4 249 11)"/></svg>`;
 
   function figure(look, mood, pose) {
-    if (look && look.sprite && CAST[look.sprite]) return spriteFigure(look.sprite, mood || "smile", pose || "idle");
+    if (look && look.sprite && CAST[look.sprite]) return spriteFigure(look.sprite, mood || "smile", pose || "idle", look);
     const gid = "kickfig" + (++FIGURE_SEQ);
     const L = Object.assign({ skin: "#D9A07A", hair: "#2a1d14", hs: "short", top: "#2563eb", wear: "shirt" }, look || {});
     L.topC = calm(L.top); L.hairC = L.hs === "grey" ? "#c9ced6" : L.hair; L.gid = gid;
@@ -1002,7 +1008,7 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   let OPEN_EP = () => {};
   function mount() {
     const D = window.KICKOFF_DATA && window.KICKOFF_DATA[SITE]; if (!D) return;
-    addCss();
+    addCss(); preloadCast();
     const a = document.getElementById("arch-flow"); if (a) renderArch(a, D.arch);
     if (a && !document.getElementById("ko-teaser")) {
       const t = document.createElement("div"); t.id = "ko-teaser"; t.className = "ko-teaser";
@@ -1019,5 +1025,5 @@ body.dark-mode .ko-book{background:#f7f8fa;border-color:#2b3442}
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount); else mount();
   // for checking which voice each character gets on this device: KICKOFF_KIT.voicePlan()
-  window.KICKOFF_KIT = { renderArch, renderDeck, figure, people, speak, scene: (k, D) => { if (D) CO = brandName(D); return sceneSvg(k); }, brand: brandName, episodes: EPISODES, openEpisode: (n) => OPEN_EP(n), addCss, hush: hushAll, prefs, speechReady: () => SPEECH && speechSynthesis.getVoices().length > 0, voicePlan: () => { const D = window.KICKOFF_DATA && window.KICKOFF_DATA[SITE]; if (!D) return {}; const P = people(D); voices(); return Object.fromEntries(["sp", "us", "ow", "lead", "pm", "ba", "de", "qa", "you", "narr"].map(k => { const v = voiceFor(k, P); return [k + (P[k] ? " · " + P[k].short : ""), (v.voice ? v.voice.name : "default") + " · pitch " + v.pitch.toFixed(2)]; })); } };
+  window.KICKOFF_KIT = { _retry: spriteRetry, renderArch, renderDeck, figure, people, speak, scene: (k, D) => { if (D) CO = brandName(D); return sceneSvg(k); }, brand: brandName, episodes: EPISODES, openEpisode: (n) => OPEN_EP(n), addCss, hush: hushAll, prefs, speechReady: () => SPEECH && speechSynthesis.getVoices().length > 0, voicePlan: () => { const D = window.KICKOFF_DATA && window.KICKOFF_DATA[SITE]; if (!D) return {}; const P = people(D); voices(); return Object.fromEntries(["sp", "us", "ow", "lead", "pm", "ba", "de", "qa", "you", "narr"].map(k => { const v = voiceFor(k, P); return [k + (P[k] ? " · " + P[k].short : ""), (v.voice ? v.voice.name : "default") + " · pitch " + v.pitch.toFixed(2)]; })); } };
 })();
